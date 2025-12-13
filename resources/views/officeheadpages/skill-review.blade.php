@@ -1,0 +1,452 @@
+@extends('../layout/' . $layout)
+
+@section('subhead')
+    <title>Skill Review - SAMS</title>
+@endsection
+
+@section('subcontent')
+    <div class="grid grid-cols-12 gap-6">
+        <div class="col-span-12 2xl:col-span-12">
+            <div class="grid grid-cols-12 gap-6">
+                <!-- Header -->
+                <div class="col-span-12 mt-4">
+                    <div class="intro-y box p-5">
+                        <h1 class="text-xl md:text-2xl font-medium flex items-center">
+                            <i data-lucide="briefcase" class="w-5 h-5 mr-2"></i>
+                            Review Student Assistant Skills
+                        </h1>
+                        <p class="text-slate-500 mt-2">Review and manage skill requests from student assistants in your office.</p>
+                        <div class="alert alert-info mt-3 flex items-center" id="pendingCount">
+                            <i data-lucide="bell" class="w-4 h-4 mr-2"></i>
+                            You have <span id="pendingCountNumber" class="mx-1">0</span> pending skill requests to review.
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Filters -->
+                <div class="col-span-12 intro-y">
+                    <div class="box p-5">
+                        <h2 class="text-lg font-medium mb-4 flex items-center">
+                            <i data-lucide="filter" class="w-5 h-5 mr-2"></i>
+                            Filters
+                        </h2>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div>
+                                <label for="searchInput" class="form-label">Search:</label>
+                                <input type="text" id="searchInput" class="form-control" placeholder="Search by name, ID, or skill" />
+                            </div>
+                            <div>
+                                <label for="statusFilter" class="form-label">Status:</label>
+                                <select id="statusFilter" class="form-control">
+                                    <option value="">All Statuses</option>
+                                    <option value="Pending">Pending</option>
+                                    <option value="Approved">Approved</option>
+                                    <option value="Rejected">Rejected</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Skill Table -->
+                <div class="col-span-12 intro-y">
+                    <div class="box p-5">
+                        <h2 class="text-lg font-medium mb-4 flex items-center">
+                            <i data-lucide="clipboard-list" class="w-5 h-5 mr-2"></i>
+                            Skill Requests
+                        </h2>
+                        <div class="overflow-x-auto">
+                            <table class="table table-report">
+                                <thead>
+                                    <tr>
+                                        <th>#</th>
+                                        <th>Name</th>
+                                        <th>Student ID</th>
+                                        <th>Skill</th>
+                                        <th>Description</th>
+                                        <th>Date</th>
+                                        <th>Status</th>
+                                        <th>Proof</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="skillTableBody">
+                                    <tr>
+                                        <td colspan="9" class="text-center text-slate-500">Loading...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Skill Review Panel -->
+                <div class="col-span-12 intro-y" id="skillDetailsPanel" style="display: none;">
+                    <div class="box p-5">
+                        <h2 class="text-lg font-medium mb-4 flex items-center">
+                            <i data-lucide="edit" class="w-5 h-5 mr-2"></i>
+                            Skill Review
+                        </h2>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                            <div>
+                                <span class="font-medium text-slate-600">Student Name:</span>
+                                <span id="detailName" class="text-slate-800"></span>
+                            </div>
+                            <div>
+                                <span class="font-medium text-slate-600">Student ID:</span>
+                                <span id="detailStudentId" class="text-slate-800"></span>
+                            </div>
+                            <div>
+                                <span class="font-medium text-slate-600">Skill Name:</span>
+                                <span id="detailSkill" class="text-slate-800"></span>
+                            </div>
+                            <div>
+                                <span class="font-medium text-slate-600">Date Added:</span>
+                                <span id="detailDate" class="text-slate-800"></span>
+                            </div>
+                            <div>
+                                <span class="font-medium text-slate-600">Current Status:</span>
+                                <span id="detailStatus" class="text-slate-800"></span>
+                            </div>
+                        </div>
+                        <div class="mb-4">
+                            <span class="font-medium text-slate-600">Description / Notes:</span>
+                            <p id="detailNote" class="text-slate-800 mt-1"></p>
+                        </div>
+                        <div class="mb-4" id="proofFileSection" style="display: none;">
+                            <span class="font-medium text-slate-600">Proof File:</span>
+                            <div class="mt-2">
+                                <a id="proofFileLink" href="#" target="_blank" class="text-primary hover:underline">
+                                    <i data-lucide="file" class="w-4 h-4 inline mr-1"></i> View Proof
+                                </a>
+                            </div>
+                        </div>
+                        <div class="mb-4">
+                            <label for="reviewRemarks" class="form-label">Remarks (optional):</label>
+                            <textarea id="reviewRemarks" class="form-control" rows="3" placeholder="Enter any remarks or notes about this skill request"></textarea>
+                        </div>
+                        <div class="flex gap-2">
+                            <button class="btn btn-success text-white" onclick="submitSkillReview('Approved')">
+                                <i data-lucide="check" class="w-4 h-4 mr-2"></i>
+                                Approve
+                            </button>
+                            <button class="btn btn-danger" onclick="submitSkillReview('Rejected')">
+                                <i data-lucide="x" class="w-4 h-4 mr-2"></i>
+                                Reject
+                            </button>
+                            <button class="btn btn-secondary" onclick="closeSkillPanel()">
+                                <i data-lucide="x" class="w-4 h-4 mr-2"></i>
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+@endsection
+
+@section('script')
+    <script type="module">
+        (function () {
+            let skillData = [];
+            let filteredData = [];
+            let currentSkillId = null;
+
+            // DOM elements
+            const searchInput = document.getElementById('searchInput');
+            const statusFilter = document.getElementById('statusFilter');
+            const skillTableBody = document.getElementById('skillTableBody');
+            const skillDetailsPanel = document.getElementById('skillDetailsPanel');
+            const pendingCountNumber = document.getElementById('pendingCountNumber');
+
+            // Initialize page
+            async function init() {
+                await loadSkills();
+                setupEventListeners();
+                updatePendingCount();
+                renderTable();
+                reloadLucideIcons();
+            }
+
+            // Load skills from API
+            async function loadSkills() {
+                try {
+                    const response = await fetch('/api/office-skills', {
+                        headers: {
+                            'Accept': 'application/json'
+                        }
+                    });
+                    
+                    const contentType = response.headers.get('content-type');
+                    if (!contentType || !contentType.includes('application/json')) {
+                        const text = await response.text();
+                        console.error('Non-JSON response:', text.substring(0, 200));
+                        skillTableBody.innerHTML = '<tr><td colspan="9" class="text-center text-slate-500">Error loading data</td></tr>';
+                        return;
+                    }
+                    
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        skillData = result.data.map(skill => ({
+                            id: skill.id,
+                            name: skill.name,
+                            studentId: skill.student_id,
+                            skill: skill.skill_name,
+                            note: skill.note,
+                            proof_file: skill.proof_file,
+                            dateAdded: skill.created_at,
+                            status: skill.status,
+                            remarks: skill.remarks,
+                            reviewed_at: skill.reviewed_at,
+                            reviewed_by: skill.reviewed_by
+                        }));
+                        filteredData = [...skillData];
+                    } else {
+                        skillTableBody.innerHTML = '<tr><td colspan="9" class="text-center text-slate-500">' + (result.message || 'No skills found') + '</td></tr>';
+                    }
+                } catch (error) {
+                    console.error('Error loading skills:', error);
+                    skillTableBody.innerHTML = '<tr><td colspan="9" class="text-center text-slate-500">Error loading data</td></tr>';
+                }
+            }
+
+            // Setup event listeners
+            function setupEventListeners() {
+                searchInput.addEventListener('input', filterData);
+                statusFilter.addEventListener('change', filterData);
+            }
+
+            // Filter data based on search and filters
+            function filterData() {
+                const searchTerm = searchInput.value.toLowerCase();
+                const selectedStatus = statusFilter.value;
+
+                filteredData = skillData.filter(skill => {
+                    const matchesSearch = !searchTerm || 
+                        skill.name.toLowerCase().includes(searchTerm) || 
+                        skill.studentId.toLowerCase().includes(searchTerm) ||
+                        skill.skill.toLowerCase().includes(searchTerm);
+                    
+                    const matchesStatus = !selectedStatus || skill.status === selectedStatus;
+
+                    return matchesSearch && matchesStatus;
+                });
+
+                renderTable();
+                updatePendingCount();
+            }
+
+            // Render the skill table
+            function renderTable() {
+                if (filteredData.length === 0) {
+                    skillTableBody.innerHTML = '<tr><td colspan="9" class="text-center text-slate-500">No skill records found</td></tr>';
+                    reloadLucideIcons();
+                    return;
+                }
+
+                skillTableBody.innerHTML = filteredData.map((skill, index) => `
+                    <tr>
+                        <td>${index + 1}</td>
+                        <td>${skill.name}</td>
+                        <td>${skill.studentId || 'N/A'}</td>
+                        <td>${skill.skill}</td>
+                        <td class="max-w-xs truncate" title="${skill.note || 'No description'}">${skill.note || '—'}</td>
+                        <td>${formatDate(skill.dateAdded)}</td>
+                        <td><span class="badge ${getStatusBadgeClass(skill.status)} text-white rounded p-1">${skill.status}</span></td>
+                        <td>
+                            ${skill.proof_file ? 
+                                `<a href="${skill.proof_file}" target="_blank" class="text-primary hover:underline">
+                                    <i data-lucide="file" class="w-4 h-4 inline mr-1"></i> View
+                                </a>` 
+                                : '—'}
+                        </td>
+                        <td>
+                            ${skill.status === 'Pending' ? 
+                                `<button class="btn btn-primary btn-sm text-white" onclick="viewSkill(${skill.id})">
+                                    <i data-lucide="eye" class="w-4 h-4 mr-1"></i> Review
+                                </button>` 
+                                : 
+                                `<button class="btn btn-secondary btn-sm text-white" onclick="viewSkill(${skill.id})" title="Already reviewed">
+                                    <i data-lucide="check-circle" class="w-4 h-4 mr-1"></i> View
+                                </button>`}
+                        </td>
+                    </tr>
+                `).join('');
+                
+                reloadLucideIcons();
+            }
+
+            // Get status badge class
+            function getStatusBadgeClass(status) {
+                switch (status) {
+                    case 'Approved': return 'bg-success text-white';
+                    case 'Rejected': return 'bg-danger text-white';
+                    case 'Pending': return 'bg-warning text-white';
+                    default: return 'bg-secondary text-white';
+                }
+            }
+
+            // Format date for display
+            function formatDate(dateString) {
+                const date = new Date(dateString);
+                return date.toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric'
+                });
+            }
+
+            // Update pending count
+            function updatePendingCount() {
+                const pendingCount = filteredData.filter(skill => skill.status === 'Pending').length;
+                pendingCountNumber.textContent = pendingCount;
+            }
+
+            // View skill function (global scope for onclick)
+            window.viewSkill = async function(skillId) {
+                const skill = skillData.find(s => s.id === skillId);
+                if (!skill) return;
+
+                currentSkillId = skillId;
+                
+                // Populate details
+                document.getElementById('detailName').textContent = skill.name;
+                document.getElementById('detailStudentId').textContent = skill.studentId || 'N/A';
+                document.getElementById('detailSkill').textContent = skill.skill;
+                document.getElementById('detailDate').textContent = formatDate(skill.dateAdded);
+                document.getElementById('detailStatus').textContent = skill.status;
+                document.getElementById('detailNote').textContent = skill.note || 'No description provided';
+                document.getElementById('reviewRemarks').value = skill.remarks || '';
+
+                // Show/hide proof file
+                const proofFileSection = document.getElementById('proofFileSection');
+                const proofFileLink = document.getElementById('proofFileLink');
+                if (skill.proof_file) {
+                    proofFileLink.href = skill.proof_file;
+                    proofFileSection.style.display = 'block';
+                } else {
+                    proofFileSection.style.display = 'none';
+                }
+
+                // Show/hide action buttons based on status
+                const approveBtn = skillDetailsPanel.querySelector('button[onclick*="Approved"]');
+                const rejectBtn = skillDetailsPanel.querySelector('button[onclick*="Rejected"]');
+                
+                if (skill.status !== 'Pending') {
+                    // Already reviewed - disable buttons
+                    if (approveBtn) approveBtn.disabled = true;
+                    if (rejectBtn) rejectBtn.disabled = true;
+                } else {
+                    // Pending - enable buttons
+                    if (approveBtn) approveBtn.disabled = false;
+                    if (rejectBtn) rejectBtn.disabled = false;
+                }
+
+                // Show panel
+                skillDetailsPanel.style.display = 'block';
+                skillDetailsPanel.scrollIntoView({ behavior: 'smooth' });
+                reloadLucideIcons();
+            };
+
+            // Close skill panel function (global scope for onclick)
+            window.closeSkillPanel = function() {
+                skillDetailsPanel.style.display = 'none';
+                currentSkillId = null;
+            };
+
+            // Submit skill review function (global scope for onclick)
+            window.submitSkillReview = async function(action) {
+                if (!currentSkillId) return;
+
+                const remarks = document.getElementById('reviewRemarks').value;
+                
+                try {
+                    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+                    
+                    const response = await fetch(`/api/skill-requests/${currentSkillId}`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': csrfToken,
+                            'Accept': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            action: action,
+                            remarks: remarks
+                        })
+                    });
+                    
+                    const result = await response.json();
+                    
+                    if (response.ok && result.success) {
+                        // Update local data
+                        const skillIndex = skillData.findIndex(s => s.id === currentSkillId);
+                        if (skillIndex !== -1) {
+                            skillData[skillIndex].status = action;
+                            skillData[skillIndex].remarks = remarks;
+                            skillData[skillIndex].reviewed_at = result.data.reviewed_at;
+                            skillData[skillIndex].reviewed_by = '{{ Auth::user()->full_name ?? Auth::user()->name }}';
+                        }
+
+                        // Update filtered data
+                        const filteredIndex = filteredData.findIndex(s => s.id === currentSkillId);
+                        if (filteredIndex !== -1) {
+                            filteredData[filteredIndex].status = action;
+                            filteredData[filteredIndex].remarks = remarks;
+                            filteredData[filteredIndex].reviewed_at = result.data.reviewed_at;
+                            filteredData[filteredIndex].reviewed_by = '{{ Auth::user()->full_name ?? Auth::user()->name }}';
+                        }
+
+                        // Update UI
+                        updatePendingCount();
+                        renderTable();
+                        closeSkillPanel();
+
+                        // Show success message
+                        showMessage(result.message || `Skill request ${action.toLowerCase()} successfully!`, 'success');
+                    } else {
+                        showMessage(result.message || 'Failed to process skill request', 'error');
+                    }
+                } catch (error) {
+                    console.error('Error processing skill request:', error);
+                    showMessage('An error occurred while processing skill request', 'error');
+                }
+            };
+
+            // Show message function
+            function showMessage(message, type) {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = `alert alert-${type === 'success' ? 'success' : 'danger'} flex items-center fixed top-4 right-4 z-50 shadow-lg`;
+                messageDiv.innerHTML = `
+                    <i data-lucide="${type === 'success' ? 'check-circle' : 'alert-circle'}" class="w-4 h-4 mr-2"></i>
+                    ${message}
+                `;
+                
+                document.body.appendChild(messageDiv);
+                reloadLucideIcons();
+                
+                setTimeout(() => {
+                    messageDiv.remove();
+                }, 3000);
+            }
+
+            // Reload Lucide icons
+            function reloadLucideIcons() {
+                if (window.lucide && window.lucide.createIcons) {
+                    window.lucide.createIcons({
+                        icons: window.lucide.icons,
+                        "stroke-width": 1.5,
+                        nameAttr: "data-lucide",
+                    });
+                }
+            }
+
+            // Initialize when DOM is loaded
+            document.addEventListener('DOMContentLoaded', init);
+        })();
+    </script>
+@endsection
+
+

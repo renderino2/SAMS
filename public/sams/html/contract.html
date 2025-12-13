@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Contract Management - SAMS</title>
+  <link rel="stylesheet" href="../css/contract.css" />
+  <script defer src="../js/contract.js"></script>
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="logo-container">
+        <img src="../assets/final-cjc-logo-1.png" alt="Logo" class="logo-img" width="80" />
+        <h2>SAMS</h2>
+      </div>
+      <nav>
+        <ul>
+          <li><a href="hr-dashboard.html">👤 HR Dashboard</a></li>
+          <li><a href="student-assistants.html">📋 Student Assistant Management</a></li>
+          <li><a href="contract.html" class="active">📝 Contract Management</a></li>
+          <li><a href="hr-skill-inventory.html">💼 Skill Inventory (HR)</a></li>
+          <li><a href="evaluation-review.html">🧾 Evaluation Review</a></li>
+          <li><a href="reports.html">📁 Reports & Exports</a></li>
+          <li><a href="hr-account-settings.html">⚙️ Account Settings</a></li>
+        </ul>
+      </nav>
+    </aside>
+
+    <main class="main-content">
+      <header class="page-header">
+        <h1>Student Assistant Contract Management</h1>
+      </header>
+
+      <section class="filters">
+        <input type="text" id="searchInput" placeholder="Search by name or ID" />
+        <select id="officeFilter">
+          <option value="">All Offices</option>
+          <option>Registrar</option>
+          <option>Library</option>
+          <option>Guidance</option>
+        </select>
+        <select id="statusFilter">
+          <option value="">Status: All</option>
+          <option>Active</option>
+          <option>Expired</option>
+          <option>Pending</option>
+        </select>
+        <button onclick="toggleUploadPanel()">➕ Add Contract</button>
+      </section>
+
+      <section class="contract-table">
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Student ID</th>
+              <th>Office</th>
+              <th>Start Date</th>
+              <th>End Date</th>
+              <th>Status</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="contractList">
+            <tr><td colspan="7" class="no-data">No contract records found.</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="upload-panel" id="uploadPanel" style="display: none;">
+        <h2>Upload / Renew Contract</h2>
+        <form id="uploadForm">
+          <label>Full Name:</label>
+          <input type="text" id="uploadName" required />
+
+          <label>Student ID:</label>
+          <input type="text" id="uploadID" required />
+
+          <label>Office:</label>
+          <select id="uploadOffice" required>
+            <option>Registrar</option>
+            <option>Library</option>
+            <option>Guidance</option>
+          </select>
+
+          <label>Start Date:</label>
+          <input type="date" id="startDate" required />
+
+          <label>End Date:</label>
+          <input type="date" id="endDate" required />
+
+          <label>Upload PDF:</label>
+          <input type="file" id="pdfUpload" accept="application/pdf" />
+
+          <textarea id="notes" placeholder="Optional Notes"></textarea>
+
+          <button type="submit">Save Contract</button>
+        </form>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

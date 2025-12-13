@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Evaluation Form - SAMS</title>
+  <link rel="stylesheet" href="../css/evaluation-form.css" />
+  <script defer src="../js/evaluation-form.js"></script>
+</head>
+<body>
+  <div class="layout">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="logo-container">
+        <img src="../assets/cjclogo.jpg " alt="Logo" class="logo-img" />
+      </div>
+      <h2>Office Head</h2>
+      <ul>
+        <li><a href="../html/dtr.monitoring.html">👤 DTR Monitoring</a></li>
+      <li><a href="../html/office-head-dashboard.html">📄 Office Head Dashboard</a></li>
+      <li><a href="../html/evaluation-form.html" class="active">📄 Evaluation Form</a></li>
+      <li><a href="../html/office-head-requests-review.html">📤 Requests Review</a></li>
+      <li><a href="../html/office-head-account-settings.html">⚙️ Account Settings</a></li>
+      </ul>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <div class="card">
+        <div class="card-header">
+          <h1>Student Assistant Efficiency Rating Form</h1>
+          <p class="subnote">Norms: 9–10 Excellent | 7–8 Good | 5–6 Fair | 3–4 Poor</p>
+        </div>
+
+        <form id="evaluationForm" class="form-body">
+          <div class="row">
+            <div>
+              <label for="studentName">Name:</label>
+              <input type="text" id="studentName" required />
+            </div>
+            <div>
+              <label for="natureOfWork">Nature of Work:</label>
+              <input type="text" id="natureOfWork" required />
+            </div>
+            <div>
+              <label for="office">Office:</label>
+              <input type="text" id="office" required />
+            </div>
+          </div>
+
+          <div class="rating-section">
+            <h2>Rating Criteria</h2>
+            <div class="criteria">
+              <label>1. Punctuality and regular attendance</label>
+              <input type="number" id="rate1" min="1" max="10" required />
+              <label>2. Conscious use of time during working hours</label>
+              <input type="number" id="rate2" min="1" max="10" required />
+              <label>3. Ability to understand and follow directions</label>
+              <input type="number" id="rate3" min="1" max="10" required />
+              <label>4. Sufficient competency and skill</label>
+              <input type="number" id="rate4" min="1" max="10" required />
+              <label>5. Promptness in performing assigned work</label>
+              <input type="number" id="rate5" min="1" max="10" required />
+              <label>6. Attention to details (accuracy, neatness, etc.)</label>
+              <input type="number" id="rate6" min="1" max="10" required />
+              <label>7. Initiative (doing things without waiting for orders)</label>
+              <input type="number" id="rate7" min="1" max="10" required />
+              <label>8. Health Condition (balance work and studies)</label>
+              <input type="number" id="rate8" min="1" max="10" required />
+              <label>9. Spirit and Attitude</label>
+              <input type="number" id="rate9" min="1" max="10" required />
+              <label>10. Professional discretion</label>
+              <input type="number" id="rate10" min="1" max="10" required />
+            </div>
+          </div>
+
+          <label for="comments">Comments:</label>
+          <textarea id="comments" rows="4" placeholder="Optional feedback..."></textarea>
+
+          <div class="row">
+            <div>
+              <label for="date">Date:</label>
+              <input type="date" id="date" required />
+            </div>
+            <div>
+              <label for="ratedBy">Rated by:</label>
+              <input type="text" id="ratedBy" required />
+            </div>
+            <div>
+              <label for="head">Head of Office:</label>
+              <input type="text" id="head" required />
+            </div>
+          </div>
+
+          <button type="submit">Submit Evaluation</button>
+          <p id="message" class="message"></p>
+        </form>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

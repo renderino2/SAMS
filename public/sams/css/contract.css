@@ -1,0 +1,157 @@
+body {
+  font-family: 'Segoe UI', sans-serif;
+  margin: 0;
+  background-color: #f2f2f2;
+}
+
+.layout {
+  display: flex;
+  min-height: 100vh;
+}
+
+.sidebar {
+  width: 240px;
+  background-color: #b71c1c;
+  color: white;
+  padding: 20px;
+}
+
+.logo-container {
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+
+.sidebar h2 {
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.sidebar nav ul {
+  list-style: none;
+  padding: 0;
+}
+
+.sidebar nav ul li {
+  margin: 12px 0;
+}
+
+.sidebar nav ul li a {
+  color: white;
+  text-decoration: none;
+  display: block;
+  padding: 10px;
+  border-radius: 6px;
+  font-weight: 500;
+}
+
+.sidebar nav ul li a:hover,
+.sidebar nav ul li.active a {
+  background-color: #a31616;
+}
+
+.main-content {
+  flex: 1;
+  padding: 30px;
+  background-color: #f9f9f9;
+}
+
+.page-header {
+  background-color: #b71c1c;
+  color: white;
+  text-align: center;
+  padding: 20px;
+  border-radius: 6px;
+  margin-bottom: 20px;
+}
+
+.filters {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.filters input,
+.filters select,
+.filters button {
+  padding: 10px;
+  font-size: 14px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+}
+
+.contract-table table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+}
+
+.contract-table th,
+.contract-table td {
+  padding: 12px;
+  border: 1px solid #ccc;
+  text-align: left;
+}
+
+.contract-table th {
+  background-color: #f5f5f5;
+}
+
+.no-data {
+  text-align: center;
+  font-style: italic;
+  color: #888;
+}
+
+.badge {
+  padding: 6px 10px;
+  border-radius: 10px;
+  color: white;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.badge.Active { background-color: #4CAF50; }
+.badge.Expired { background-color: #e53935; }
+.badge.Pending { background-color: #fbc02d; }
+
+.upload-panel {
+  margin-top: 30px;
+  background: white;
+  padding: 20px;
+  border-radius: 8px;
+  border: 1px solid #ccc;
+}
+
+.upload-panel h2 {
+  margin-top: 0;
+  color: #b71c1c;
+}
+
+.upload-panel form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.upload-panel input,
+.upload-panel select,
+.upload-panel textarea,
+.upload-panel button {
+  padding: 10px;
+  font-size: 14px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+}
+
+.upload-panel button {
+  background-color: #b71c1c;
+  color: white;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.upload-panel button:hover {
+  background-color: #a31616;
+}

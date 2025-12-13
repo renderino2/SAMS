@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>📤 Requests Page - SAMS</title>
+  <link rel="stylesheet" href="../css/requests.css" />
+  <script defer src="../js/requests.js"></script>
+</head>
+<body>
+  <div class="layout">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="logo-container">
+        <img src="../assets/cjclogo.jpg" alt="SAMS Logo" class="logo-img" />
+        <h2>SAMS</h2>
+      </div>
+      <nav>
+        <ul>
+          <li><a href="../html/sa-dashboard.html">🏠 Student Assistant Dashboard</a></li>
+          <li><a href="../html/attendance.html">🕘 Attendance Page</a></li>
+          <li><a href="../html/requests.html" class="active">📤 Requests Page</a></li>
+          <li><a href="../html/sa-skill-inventory.html">🧠 Skill Inventory (Self)</a></li>
+          <li><a href="../html/profile.html">👤 Profile Page</a></li>
+          <li><a href="../html/sa-settings.html">⚙️ Account Settings</a></li>
+        </ul>
+      </nav>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <header class="page-header">
+        <h1>📤 Requests</h1>
+        <p class="subtext">Submit and track your student assistant-related requests.</p>
+      </header>
+
+      <!-- Submitted Requests Table -->
+      <section class="card">
+        <h2>📄 Submitted Requests</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Type</th>
+              <th>Message</th>
+              <th>Status</th>
+              <th>Submitted On</th>
+            </tr>
+          </thead>
+          <tbody id="requestsBody">
+            <!-- Rows populated via JS -->
+          </tbody>
+        </table>
+      </section>
+
+      <!-- New Request Form -->
+      <section class="card">
+        <h2>➕ New Request</h2>
+        <form id="requestForm">
+          <label for="request_type">Request Type:</label>
+          <select name="request_type" id="request_type" required>
+            <option value="">-- Select --</option>
+            <option value="Schedule Adjustment">Schedule Adjustment</option>
+            <option value="Change Office">Change Office</option>
+            <option value="Leave Request">Leave Request</option>
+          </select>
+
+          <label for="message">Message:</label>
+          <textarea name="message" id="message" rows="3" required></textarea>
+
+          <button type="submit">Submit Request</button>
+        </form>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

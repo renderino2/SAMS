@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>🧠 My Skill Inventory - SAMS</title>
+  <link rel="stylesheet" href="../css/sa-skill-inventory.css" />
+  <script defer src="../js/sa-skill-inventory.js"></script>
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="logo-container">
+        <img src="../assets/final-cjc-logo-1.png " alt="Logo" width="80" />
+        <h2>SAMS</h2>
+      </div>
+      <nav>
+        <ul>
+          <li><a href="sa-dashboard.html">🏠 Student Assistant Dashboard</a></li>
+          <li><a href="attendance.html">🕘 Attendance Page</a></li>
+          <li><a href="requests.html">📤 Requests Page</a></li>
+          <li><a href="sa-skill-inventory.html" class="active">🧠 Skill Inventory (Self)</a></li>
+          <li><a href="profile.html">👤 Profile Page</a></li>
+          <li><a href="sa-settings.html">⚙️ Account Settings</a></li>
+        </ul>
+      </nav>
+    </aside>
+
+    <main class="main-content">
+      <header class="page-header">
+        <h1>🧠 My Skill Inventory</h1>
+        <p class="subtext">These skills are visible to your HR & Office Head.</p>
+        <div class="notification" id="notificationBar">
+          🔔 You have 0 pending skill requests under review.
+        </div>
+      </header>
+
+      <section class="card">
+        <h2>📋 Skill Records</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Skill Tag</th>
+              <th>Added On</th>
+              <th>Status</th>
+              <th>Remarks</th>
+            </tr>
+          </thead>
+          <tbody id="skillsBody">
+            <!-- JS renders here -->
+          </tbody>
+        </table>
+      </section>
+
+      <section class="card">
+        <h2>➕ Request New Skill Update</h2>
+        <form id="addSkillForm" enctype="multipart/form-data">
+          <input type="text" id="skillName" name="skillName" placeholder="Skill Name (e.g., Canva)" required />
+          <textarea id="skillNote" name="skillNote" rows="3" placeholder="Description / Notes (optional)"></textarea>
+          <input type="file" name="proofUpload" id="proofUpload" accept=".pdf,.jpg,.jpeg,.png" />
+          <button type="submit">Request Skill Update</button>
+        </form>
+        <div class="success-message" id="feedback" style="display: none;">✅ Skill update request sent for review.</div>
+      </section>
+    </main>
+  </div>
+  <script src="../js/skill-inventory.js"></script>
+</body>
+</html>

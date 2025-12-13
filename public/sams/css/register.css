@@ -1,0 +1,81 @@
+body {
+  background: url('../assets/cjcbg.jpg') no-repeat center center fixed;
+  font-family: 'Segoe UI', sans-serif;
+  background-color: #f0f0f0;
+  margin: 0;
+  padding: 0;
+}
+
+.container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+}
+
+.reg {
+  background-color: rgba(247, 247, 247, 0.95);
+  border-radius: 20px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  width: 600px;
+  padding: 40px 40px;
+  text-align: center;
+
+}
+
+.card {
+  background: rgb(255, 255, 255);
+  padding: 40px;
+  border-radius: 10px;
+  box-shadow: 0 0 12px rgba(0,0,0,0.1);
+  width: 100%;
+  max-width: 500px;
+}
+
+.logo {
+  width: 80px;
+  display: block;
+  margin: 0 auto 20px;
+}
+
+h2 {
+  text-align: center;
+  color: #b71c1c;
+  margin-bottom: 30px;
+}
+
+form {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+label {
+  font-weight: 600;
+}
+
+input, select {
+  padding: 10px;
+  font-size: 14px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+}
+
+button {
+  background-color: #b71c1c;
+  color: white;
+  padding: 12px;
+  font-weight: bold;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+button:hover {
+  background-color: #a31616;
+}
+
+.message {
+  margin-top: 10px;
+  font-weight: bold;
+}

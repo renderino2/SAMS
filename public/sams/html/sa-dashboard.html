@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Student Assistant Dashboard - SAMS</title>
+  <link rel="stylesheet" href="../css/sa-dashboard.css" />
+  <script defer src="../js/sa-dashboard.js"></script>
+</head>
+<body>
+  <div class="layout">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <img src="../assets/final-cjc-logo-1.png" alt="SAMS Logo" class="logo" />
+      <h2>SAMS</h2>
+      <nav>
+        <ul>
+          <li><a href="../html/student-assistants.html" class="active">🏠 Student Assistant Dashboard</a></li>
+          <li><a href="../html/attendance.html">🕘 Attendance Page</a></li>
+          <li><a href="../html/requests.html">📤 Requests Page</a></li>
+          <li><a href="../html/skill-inventory.html">🧠 Skill Inventory (Self)</a></li>
+          <li><a href="../html/profile.html">👤 Profile Page</a></li>
+          <li><a href="../html/sa-settings.html">⚙️ Account Settings</a></li>
+        </ul>
+      </nav>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <header>
+        <h1>Welcome, Student Assistant</h1>
+        <p>📅 Today: <span id="currentDate">—</span></p>
+      </header>
+
+      <!-- Overview Cards -->
+      <section class="stats-row">
+        <div class="stat-card">
+          <p class="label">🕒 Time In</p>
+          <p class="value" id="timeIn">—</p>
+        </div>
+        <div class="stat-card">
+          <p class="label">🕔 Time Out</p>
+          <p class="value" id="timeOut">—</p>
+        </div>
+        <div class="stat-card">
+          <p class="label">⏳ Total Hours</p>
+          <p class="value" id="totalHours">—</p>
+        </div>
+      </section>
+
+      <!-- Contract and Requests -->
+      <section class="status-section">
+        <h2>📋 Contract & Requests</h2>
+        <ul>
+          <li><strong>Contract Status:</strong> <span class="status" id="contractStatus">—</span></li>
+          <li><strong>Last Request:</strong> <span id="lastRequest">—</span></li>
+        </ul>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

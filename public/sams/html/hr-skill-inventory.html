@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Skill Inventory Management – HR Panel</title>
+  <link rel="stylesheet" href="../css/hr-skill-inventory.css" />
+  <script defer src="../js/hr-skill-inventory.js"></script>
+</head>
+<body>
+  <div class="layout">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="logo-container">
+        <img src="../assets/final-cjc-logo-1.png" alt="Logo" class="logo-img" width="80px" />
+        <h2>SAMS</h2>
+      </div>
+      <nav>
+        <ul>
+          <li><a href="../html/hr-dashboard.html">📊 HR Dashboard</a></li>
+          <li><a href="../html/student-assistants.html">📋 Student Assistant Management</a></li>
+          <li><a href="../html/contract.html">📝 Contract Management</a></li>
+          <li class="active"><a href="hr-skill-inventory.html">💼 Skill Inventory (HR)</a></li>
+          <li><a href="../html/evaluation-review.html">🧾 Evaluation Review</a></li>
+          <li><a href="../html/reports.html">📁 Reports & Exports</a></li>
+          <li><a href="../html/hr-account-settings.html">⚙️ Account Settings</a></li>
+        </ul>
+      </nav>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <div class="container">
+        <header class="page-header">
+          <h1>Skill Inventory Management – HR Panel</h1>
+          <p class="subtitle">🔔 You have <span id="pending-count">0</span> unverified skills to review.</p>
+        </header>
+
+        <!-- Filters -->
+        <section class="filters">
+          <input type="text" id="searchInput" placeholder="Search by Student Name or Skill Tag" />
+          <select id="officeFilter">
+            <option value="">All Offices</option>
+            <option value="Registrar">Registrar</option>
+            <option value="Library">Library</option>
+            <option value="Guidance">Guidance</option>
+          </select>
+        </section>
+
+        <!-- Table -->
+        <section class="table-section">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Student Name</th>
+                <th>Student ID</th>
+                <th>Office</th>
+                <th>Skill</th>
+                <th>Added On</th>
+                <th>Status</th>
+                <th>Remarks</th>
+              </tr>
+            </thead>
+            <tbody id="skillTableBody">
+              <!-- JS will populate this -->
+            </tbody>
+          </table>
+        </section>
+
+        <!-- Add Form -->
+        <section class="add-skill">
+          <h2>Add New Skill</h2>
+          <form id="skillForm">
+            <div class="form-group">
+              <label for="name">Student Name:</label>
+              <input type="text" id="name" required />
+            </div>
+
+            <div class="form-group">
+              <label for="id">Student ID:</label>
+              <input type="text" id="id" required />
+            </div>
+
+            <div class="form-group">
+              <label for="office">Office:</label>
+              <select id="office" required>
+                <option value="">Select Office</option>
+                <option value="Registrar">Registrar</option>
+                <option value="Library">Library</option>
+                <option value="Guidance">Guidance</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="skill">Skill Tag:</label>
+              <input type="text" id="skill" required />
+            </div>
+
+            <div class="form-group">
+              <label for="date">Date Added:</label>
+              <input type="date" id="date" required />
+            </div>
+
+            <div class="form-group">
+              <label for="status">Status:</label>
+              <select id="status">
+                <option>Verified</option>
+                <option>Not Verified</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="remarks">Remarks (optional):</label>
+              <textarea id="remarks" rows="3" placeholder="Enter remarks..."></textarea>
+            </div>
+
+            <button type="submit">Save Skill</button>
+          </form>
+        </section>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

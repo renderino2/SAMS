@@ -1,0 +1,152 @@
+body {
+  margin: 0;
+  font-family: 'Segoe UI', sans-serif;
+  background-color: #f4f4f4;
+}
+
+.layout {
+  display: flex;
+  min-height: 100vh;
+}
+
+/* Sidebar */
+.sidebar {
+  width: 220px;
+  background-color: #b71c1c;
+  color: white;
+  padding: 20px;
+  box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1);
+}
+
+.logo-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center; /* Center the logo and text horizontally */
+  justify-content: center;
+  margin-bottom: 15px;
+}
+
+.logo-container img.logo-img {
+  width: 80px;
+  height: auto;
+  object-fit: contain;
+  border-radius: 50%;
+  margin-bottom: 10px;
+}
+
+.sidebar h2 {
+  font-size: 24px;
+  text-align: center;
+  margin-bottom: 30px;
+}
+
+.sidebar nav ul {
+  list-style: none;
+  padding: 0;
+}
+
+.sidebar nav ul li {
+  margin-bottom: 15px;
+}
+
+.sidebar nav ul li a {
+  color: white;
+  text-decoration: none;
+  font-weight: 500;
+  padding: 10px;
+  display: block;
+  border-radius: 6px;
+}
+
+.sidebar nav ul li a:hover,
+.sidebar nav ul li.active a {
+  background-color: #9f1b1b;
+}
+
+/* Main Content */
+.main-content {
+  flex-grow: 1;
+  padding: 30px;
+}
+
+h1 {
+  color: #b71c1c;
+  text-align: center;
+  margin-bottom: 30px;
+}
+
+.card {
+  background: #fff;
+  padding: 25px;
+  margin-bottom: 25px;
+  border-radius: 8px;
+  box-shadow: 0 0 10px rgba(0,0,0,0.05);
+}
+
+.card h2 {
+  margin-top: 0;
+  color: #b71c1c;
+}
+
+form {
+  display: flex;
+  flex-direction: column;
+}
+
+label {
+  margin-top: 15px;
+  margin-bottom: 5px;
+  font-weight: 500;
+}
+
+input[type="text"],
+input[type="email"],
+input[type="password"],
+select,
+textarea {
+  padding: 10px;
+  font-size: 14px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+}
+
+button {
+  margin-top: 20px;
+  padding: 10px;
+  background: #b71c1c;
+  color: white;
+  border: none;
+  font-weight: bold;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+button:hover {
+  background: #9f1b1b;
+}
+
+.danger-zone {
+  border-left: 4px solid red;
+  background: #fff4f4;
+}
+
+.danger-zone .deactivate-btn {
+  background: #d32f2f;
+}
+
+/* Profile Picture Upload */
+.profile-picture-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.profile-picture-container img {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid #ccc;
+}

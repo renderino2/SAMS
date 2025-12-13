@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>📊 HR Dashboard - SAMS</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="../css/hr-dashboard.css" />
+  <script defer src="../js/hr-dashboard.js"></script>
+</head>
+<body>
+  <div class="main-layout">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="logo-container">
+        <img src="../assets/final-cjc-logo-1.png" alt="CJC Logo" width="80" />
+        <h2>SAMS</h2>
+      </div>
+      <nav>
+        <ul>
+          <li class="active"><a href="hr-dashboard.html">📊 HR Dashboard</a></li>
+          <li><a href="hr-student-assistants.html">📋 Student Assistant Management</a></li>
+          <li><a href="contract.html">📝 Contract Management</a></li>
+          <li><a href="hr-skill-inventory.html">💼 HR Skill Inventory</a></li>
+          <li><a href="evaluation-review.html">🧾 Evaluation Review</a></li>
+          <li><a href="reports.html">📁 Reports</a></li>
+          <li><a href="hr-account-settings.html">⚙️ Settings</a></li>
+        </ul>
+      </nav>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="content">
+      <header class="page-header">
+        <h1>📊 HR Dashboard Overview</h1>
+        <p class="subtext">Monitor contract activity, student assistant attendance, and HR actions.</p>
+      </header>
+
+      <!-- Cards -->
+      <section class="dashboard-cards">
+        <div class="card"><h3>Total Student Assistants</h3><p id="totalSAs">0</p></div>
+        <div class="card"><h3>Active Contracts</h3><p id="activeContracts">0</p></div>
+        <div class="card"><h3>Pending Evaluations</h3><p id="pendingEvals">0</p></div>
+        <div class="card"><h3>Expiring Contracts</h3><p id="expiringContracts">0</p></div>
+      </section>
+
+      <!-- Attendance Summary -->
+      <section>
+        <h2>🕘 Attendance Summary</h2>
+        <table class="attendance-summary">
+          <thead>
+            <tr>
+              <th>Office</th>
+              <th>Total</th>
+              <th>Present</th>
+              <th>Late</th>
+              <th>Absent</th>
+              <th>Overtime</th>
+            </tr>
+          </thead>
+          <tbody id="attendanceBody">
+            <tr>
+              <td colspan="6" style="text-align:center; color: gray;">Loading attendance data...</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <!-- Notifications -->
+      <section class="notifications-panel">
+        <h2>🔔 Recent Activity</h2>
+        <ul id="notificationsList">
+          <li>Loading notifications...</li>
+        </ul>
+      </section>
+
+      <!-- Quick Links -->
+      <section class="quick-actions">
+        <a href="hr-student-assistants.html">📋 Manage Student Assistants</a>
+        <a href="contract.html">📝 Manage Contracts</a>
+        <a href="reports.html">📊 View Reports</a>
+        <a href="evaluation-review.html">🧾 Review Evaluations</a>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

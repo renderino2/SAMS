@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Office Head Account Settings - SAMS</title>
+  <link rel="stylesheet" href="../css/office-head-account-settings.css" />
+  <script defer src="../js/office-head-account-settings.js"></script>
+</head>
+<body>
+
+  <div class="sidebar">
+    <div class="logo-container">
+      <img src="../assets/cjclogo.jpg" alt="Cor Jesu Logo" class="logo-img" />
+    </div>
+    <h2>Office Head</h2>
+    <ul>
+      <li><a href="office-head-dashboard.html">👤 DTR Monitoring</a></li>
+      
+      <li><a href="evaluation-form.html">📄 Evaluation Form</a></li>
+      <li><a href="office-head-requests-review.html">📤 Requests Review</a></li>
+      <li><a href="office-head-account-settings.html" class="active">⚙️ Account Settings</a></li>
+    </ul>
+  </div>
+
+  <div class="main-content">
+    <h1>Office Head Account Settings</h1>
+
+    <section class="card">
+      <h2>👤 Personal Information</h2>
+      <form id="ohInfoForm">
+        <label for="ohName">Full Name:</label>
+        <input type="text" id="ohName" required />
+
+        <label for="ohEmail">Email Address:</label>
+        <input type="email" id="ohEmail" required />
+
+        <label for="role">Role:</label>
+        <input type="text" id="role" value="Office Head" readonly />
+      </form>
+    </section>
+
+    <section class="card">
+      <h2>🔐 Change Password</h2>
+      <form id="passwordForm">
+        <label for="currentPassword">Current Password:</label>
+        <input type="password" id="currentPassword" required />
+
+        <label for="newPassword">New Password:</label>
+        <input type="password" id="newPassword" required />
+
+        <label for="confirmPassword">Confirm New Password:</label>
+        <input type="password" id="confirmPassword" required />
+
+        <button type="submit">Update Password</button>
+      </form>
+    </section>
+
+    <section class="card">
+      <h2>🔔 Notification Preferences</h2>
+      <form id="notificationsForm">
+        <label><input type="checkbox" id="notifyAttendance" /> Notify me of daily attendance logs</label>
+        <label><input type="checkbox" id="notifyEvaluation" /> Remind me of pending evaluations</label>
+        <label><input type="checkbox" id="notifyWeekly" /> Email summary weekly</label>
+      </form>
+    </section>
+
+    <section class="card">
+      <h2>🛡 Two-Factor Authentication</h2>
+      <form id="twoFAForm">
+        <label>Enable 2FA:</label>
+        <select id="twoFASelect">
+          <option value="disabled">Disabled</option>
+          <option value="enabled">Enabled</option>
+        </select>
+      </form>
+    </section>
+
+    <section class="card danger-zone">
+      <h2>🧨 Deactivate Account</h2>
+      <p><strong>⚠ Warning:</strong> Deactivating your account will disable access until HR re-enables it.</p>
+      <button class="deactivate-btn" onclick="logout()">Deactivate My Account</button>
+    </section>
+  </div>
+
+</body>
+</html>

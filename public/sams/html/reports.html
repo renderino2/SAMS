@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Reports Dashboard - SAMS</title>
+  <link rel="stylesheet" href="../css/reports.css" />
+  <script defer src="../js/reports.js"></script>
+</head>
+<body>
+  <div class="layout">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="logo-container">
+        <img src="../assets/final-cjc-logo-1.png" alt="Logo" class="logo-img" />
+        <h2>SAMS</h2>
+      </div>
+      <nav>
+        <ul>
+          <li><a href="../html/hr-dashboard.html">👤 HR Dashboard</a></li>
+          <li><a href="../html/student-assistants.html">📋 Student Assistant Management</a></li>
+          <li><a href="../html/contract.html">📝 Contract Management</a></li>
+          <li><a href="../html/skill-inventory.html">💼 Skill Inventory (HR)</a></li>
+          <li><a href="../html/evaluation-review.html">🧾 Evaluation Review</a></li>
+          <li><a href="../html/reports.html" class="active">📁 Reports & Exports</a></li>
+          <li><a href="../html/hr-account-settings.html">⚙️ Account Settings</a></li>
+        </ul>
+      </nav>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <header>
+        <h1>Reports & Performance</h1>
+      </header>
+
+      <section class="report-cards">
+        <div class="card">
+          <h3>DTR Summary</h3>
+          <select>
+            <option>Daily</option>
+            <option>Weekly</option>
+            <option>Monthly</option>
+          </select>
+          <button onclick="downloadReport('dtr')">Download PDF</button>
+        </div>
+
+        <div class="card">
+          <h3>Evaluation Reports</h3>
+          <select>
+            <option>All</option>
+            <option>By Office</option>
+            <option>By Student</option>
+          </select>
+          <button onclick="downloadReport('evaluation')">Download PDF</button>
+        </div>
+
+        <div class="card">
+          <h3>Absenteeism Trends</h3>
+          <select>
+            <option>Monthly</option>
+            <option>Quarterly</option>
+            <option>Yearly</option>
+          </select>
+          <button onclick="downloadReport('absent')">Download PDF</button>
+        </div>
+      </section>
+
+      <section class="table-section">
+        <h2>Performance Table</h2>
+        <input type="text" id="searchInput" placeholder="Search student name..." />
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Office</th>
+              <th>Attendance (%)</th>
+              <th>Late</th>
+              <th>Absences</th>
+              <th>Evaluation Score</th>
+            </tr>
+          </thead>
+          <tbody id="reportTable">
+            <!-- JS Populates Data -->
+          </tbody>
+        </table>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

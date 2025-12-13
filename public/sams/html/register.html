@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Register New User - SAMS</title>
+  <link rel="stylesheet" href="../css/register.css" />
+</head>
+<body>
+  <div class="background">
+    <div class="container">
+      <div class="reg">
+        <div class="login-link">
+          <div class="logo">
+           <img src="../assets/final-cjc-logo-1.png" alt="CJC Logo" width="80">
+          </div>
+
+          <h1>Register to SAMS</h1>
+
+          <form id="registerForm">
+          <label for="studentId">Student ID Number:</label>
+          <input type="text" id="studentId" name="student_id_number" required>
+
+          <label for="fullName">Full Name:</label>
+          <input type="text" id="fullName" name="full_name" required>
+
+          <label for="email">Email Address:</label>
+          <input type="email" id="email" name="email" required>
+
+          <label for="role">Select Role:</label>
+          <select id="role" name="role" required>
+            <option value="">-- Select Role --</option>
+            <option value="Student Assistant">Student Assistant</option>
+            <option value="Office Head">Office Head</option>
+            <option value="HR">HR</option>
+          </select>
+
+          <div id="officeGroup" style="display: none;">
+            <label for="office">Assign Office:</label>
+            <select id="office" name="office">
+              <option value="">-- Select Office --</option>
+              <option value="Registrar">Registrar</option>
+              <option value="Library">Library</option>
+              <option value="Guidance">Guidance</option>
+              <option value="Finance">Finance</option>
+              <option value="Clinic">Clinic</option>
+            </select>
+          </div>
+
+          <label for="password">Password:</label>
+          <input type="password" id="password" name="password" required>
+
+          <label for="confirmPassword">Confirm Password:</label>
+          <input type="password" id="confirmPassword" name="confirm_password" required>
+
+          <button type="submit">Register</button>
+          </form>
+
+          <p id="message" class="message"></p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="../js/register.js"></script>
+</body>
+</html>

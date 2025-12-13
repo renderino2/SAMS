@@ -1,0 +1,171 @@
+/* Global Reset */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Segoe UI', sans-serif;
+  background-color: #f5f5f5;
+}
+
+/* Layout Wrapper */
+.layout {
+  display: flex;
+  min-height: 100vh;
+}
+
+/* SIDEBAR */
+.sidebar {
+  width: 240px;
+  background-color: #b71c1c;
+  color: white;
+  padding: 20px 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* Logo alignment */
+.logo-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 25px;
+}
+
+.logo-img {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  object-fit: contain;
+  margin-bottom: 8px;
+}
+
+.sidebar h2 {
+  font-size: 24px;
+  font-weight: bold;
+  text-align: center;
+}
+
+/* Sidebar Menu */
+.sidebar nav ul {
+  list-style: none;
+  padding: 0;
+  width: 100%;
+}
+
+.sidebar nav ul li {
+  margin-bottom: 10px;
+}
+
+.sidebar nav ul li a {
+  display: block;
+  padding: 10px;
+  color: white;
+  text-decoration: none;
+  border-radius: 6px;
+  font-weight: 500;
+  transition: background-color 0.2s ease;
+}
+
+.sidebar nav ul li a:hover,
+.sidebar nav ul li a.active {
+  background-color: #9e1515;
+}
+
+/* MAIN CONTENT */
+.main-content {
+  flex: 1;
+  padding: 30px 40px;
+}
+
+/* Header */
+header h1 {
+  color: #b71c1c;
+  font-size: 28px;
+  margin-bottom: 25px;
+}
+
+/* Report Cards */
+.report-cards {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin-bottom: 40px;
+}
+
+.card {
+  background-color: #fff0f0;
+  padding: 20px;
+  border-radius: 8px;
+  width: 300px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+}
+
+.card h3 {
+  color: #b71c1c;
+  margin-bottom: 10px;
+}
+
+.card select,
+.card button {
+  width: 100%;
+  padding: 10px;
+  margin-bottom: 10px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  font-size: 14px;
+}
+
+.card button {
+  background-color: #b71c1c;
+  color: white;
+  border: none;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.card button:hover {
+  background-color: #9e1515;
+}
+
+/* Table Section */
+.table-section {
+  background: white;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px #ccc;
+}
+
+.table-section h2 {
+  color: #b71c1c;
+  margin-bottom: 20px;
+}
+
+.table-section input[type="text"] {
+  padding: 10px;
+  width: 300px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  margin-bottom: 20px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+table th,
+table td {
+  padding: 10px;
+  border-bottom: 1px solid #ddd;
+  text-align: left;
+  font-size: 14px;
+}
+
+table th {
+  background-color: #f0f0f0;
+  color: #b71c1c;
+}

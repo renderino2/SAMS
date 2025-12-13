@@ -1,0 +1,174 @@
+body {
+  font-family: 'Segoe UI', sans-serif;
+  margin: 0;
+  background-color: #f5f5f5;
+}
+
+.layout {
+  display: flex;
+  min-height: 100vh;
+}
+
+/* Sidebar */
+.sidebar {
+  width: 220px;
+  background-color: #b71c1c;
+  color: white;
+  padding: 20px;
+  text-align: center;
+}
+
+.logo-container {
+  margin-bottom: 10px;
+}
+
+.logo-img {
+  width: 70px;
+  height: auto;
+  border-radius: 50%;
+  background-color: transparent;
+}
+
+.sidebar h2 {
+  margin-top: 10px;
+  font-weight: bold;
+}
+
+.sidebar nav ul {
+  list-style: none;
+  padding: 0;
+  text-align: left;
+}
+
+.sidebar nav ul li {
+  margin: 12px 0;
+}
+
+.sidebar nav ul li a {
+  color: white;
+  text-decoration: none;
+  padding: 8px 12px;
+  display: block;
+  border-radius: 6px;
+}
+
+.sidebar nav ul li a:hover,
+.sidebar nav ul li.active a {
+  background-color: #a31616;
+}
+
+/* Main Content */
+.main-content {
+  flex: 1;
+  padding: 30px;
+  background-color: #ffffff;
+}
+
+.page-header h1 {
+  margin: 0;
+  color: #b71c1c;
+}
+
+.subtext {
+  font-size: 14px;
+  color: #555;
+  margin: 6px 0 15px;
+}
+
+.notification {
+  font-size: 14px;
+  background: #fff8e1;
+  color: #795548;
+  padding: 10px;
+  border-radius: 6px;
+  margin-bottom: 30px;
+}
+
+/* Cards */
+.card {
+  background: white;
+  padding: 20px;
+  margin-bottom: 30px;
+  border-radius: 10px;
+  box-shadow: 0 1px 6px rgba(0,0,0,0.1);
+}
+
+.card h2 {
+  margin-top: 0;
+  color: #b71c1c;
+}
+
+/* Table */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 15px;
+  background-color: white;
+}
+
+th, td {
+  padding: 12px;
+  text-align: left;
+  border-bottom: 1px solid #eee;
+}
+
+th {
+  background-color: #f0f0f0;
+}
+
+.badge {
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.verified {
+  background-color: #c8e6c9;
+  color: #256029;
+}
+
+.not-verified {
+  background-color: #ffcdd2;
+  color: #c62828;
+}
+
+/* Add Skill Form */
+form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+input[type="text"],
+textarea,
+input[type="file"],
+button {
+  padding: 10px;
+  font-size: 14px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  width: 100%;
+}
+
+textarea {
+  resize: vertical;
+}
+
+button {
+  background-color: #b71c1c;
+  color: white;
+  border: none;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+button:hover {
+  background-color: #9e1a1a;
+}
+
+.success-message {
+  margin-top: 10px;
+  color: green;
+  font-weight: bold;
+}

@@ -1,0 +1,156 @@
+body {
+  font-family: 'Segoe UI', sans-serif;
+  background-color: #f4f4f4;
+  margin: 0;
+  padding: 0;
+}
+
+.layout {
+  display: flex;
+  min-height: 100vh;
+}
+
+.sidebar {
+  width: 240px;
+  background-color: #b71c1c;
+  color: white;
+  padding: 20px;
+
+}
+
+.logo-container {
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.sidebar h2 {
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.sidebar nav ul {
+  list-style: none;
+  padding: 0;
+}
+
+.sidebar nav ul li {
+  margin: 12px 0;
+}
+
+.sidebar nav ul li a {
+  color: white;
+  text-decoration: none;
+  display: block;
+  padding: 10px;
+  border-radius: 6px;
+  font-weight: 500;
+}
+
+.sidebar nav ul li a:hover,
+.sidebar nav ul li.active a {
+  background-color: #a31616;
+}
+
+.main-content {
+  flex: 1;
+  padding: 30px;
+  background-color: #f9f9f9;
+}
+
+.container {
+  max-width: 1100px;
+  margin: auto;
+  background: #fff;
+  padding: 30px;
+  border-radius: 10px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.05);
+}
+
+.page-title {
+  font-size: 24px;
+  font-weight: bold;
+  color: #b71c1c;
+  margin-bottom: 20px;
+}
+
+.filters {
+  display: flex;
+  gap: 15px;
+  margin-bottom: 20px;
+}
+
+.filters input,
+.filters select {
+  padding: 10px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  font-size: 14px;
+  width: 220px;
+}
+
+.table-container table {
+  width: 100%;
+  border-collapse: collapse;
+  background-color: #fff;
+}
+
+.table-container th,
+.table-container td {
+  padding: 12px;
+  border-bottom: 1px solid #ddd;
+  text-align: left;
+}
+
+.table-container th {
+  background-color: #eee;
+}
+
+.form-toggle {
+  margin: 20px 0;
+  text-align: center;
+}
+
+#toggleFormBtn {
+  padding: 10px 20px;
+  background-color: #b71c1c;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.add-form form {
+  background-color: white;
+  padding: 20px;
+  border-radius: 8px;
+  max-width: 600px;
+  margin: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.add-form textarea {
+  resize: vertical;
+}
+
+.badge {
+  padding: 6px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: bold;
+  color: white;
+}
+
+.badge.active {
+  background-color: #4CAF50;
+}
+
+.badge.inactive {
+  background-color: #e53935;
+}
+
+.badge.pending {
+  background-color: #fbc02d;
+}

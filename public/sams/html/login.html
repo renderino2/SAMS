@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>SAMS - Login</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="../css/login.css" />
+</head>
+<body>
+  <div class="background">
+    <div class="login-wrapper">
+      <div class="login-card">
+          <img src="../assets/final-cjc-logo-1.png" alt="CJC Logo" class="logo" />
+          <h1>Login to SAMS</h1>
+
+          <form id="loginForm" autocomplete="off">
+            <label for="studentId">Student ID Number:</label>
+            <input type="text" id="studentId" name="studentId" placeholder="e.g., 23-12345" required />
+
+            <label for="email">Email Address:</label>
+            <input type="email" id="email" name="email" required />
+
+            <label for="password">Password:</label>
+            <input type="password" id="password" name="password" required />
+
+            <label for="role">Login As:</label>
+            <select id="role" name="role" required>
+            <option value="">-- Select Role --</option>
+            <option value="Student Assistant">Student Assistant</option>
+            <option value="Office Head">Office Head</option>
+            <option value="HR">HR</option>
+            </select>
+
+            <a href="forgot-password.html" class="forgot-link">Forgot Password?</a>
+
+            <button type="submit">Login</button>
+            <p id="message" class="message"></p>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script src="../js/login.js"></script>
+</body>
+</html>

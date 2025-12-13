@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Student Assistant Management</title>
+  <link rel="stylesheet" href="../css/hr-student-assistants.css" />
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="logo-container">
+        <img src="../assets/final-cjc-logo-1.png" alt="Logo" class="logo-img" width="80" />
+        <h2>SAMS</h2>
+      </div>
+      <nav>
+        <ul>
+          <li><a href="../html/hr-dashboard.html">📊 HR Dashboard</a></li>
+          <li class="active"><a href="#">📋 Student Assistant Management</a></li>
+          <li><a href="../html/contract.html">📝 Contract Management</a></li>
+          <li><a href="../html/hr-skill-inventory.html">💼 Skill Inventory</a></li>
+          <li><a href="../html/evaluation-review.html">🧾 Evaluation Review</a></li>
+          <li><a href="../html/reports.html">📁 Reports</a></li>
+          <li><a href="../html/hr-account-settings.html">⚙️ Account Settings</a></li>
+        </ul>
+      </nav>
+    </aside>
+
+    <main class="main-content">
+      <div class="container">
+        <h1 class="page-title">📋 Student Assistant Management</h1>
+
+        <section class="filters">
+          <input type="text" id="searchInput" placeholder="Search by name or ID" />
+          <select id="officeFilter">
+            <option value="">All Offices</option>
+            <option value="Registrar">Registrar</option>
+            <option value="Library">Library</option>
+            <option value="Guidance">Guidance</option>
+          </select>
+        </section>
+
+        <section class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Name</th>
+                <th>Student ID</th>
+                <th>Assigned Office</th>
+                <th>Status</th>
+                <th>Service Record</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="saTableBody">
+              <tr><td colspan="7">Loading...</td></tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section class="form-toggle">
+          <button id="toggleFormBtn">➕ Add Student Assistant</button>
+        </section>
+
+        <section class="add-form" id="addForm" style="display: none;">
+          <form id="saForm">
+            <label>Full Name:</label>
+            <input type="text" name="name" required />
+            <label>Student ID:</label>
+            <input type="text" name="studentId" required />
+            <label>Assign Office:</label>
+            <select name="office" required>
+              <option value="">Select Office</option>
+              <option>Registrar</option>
+              <option>Library</option>
+              <option>Guidance</option>
+            </select>
+            <label>Status:</label>
+            <select name="status" required>
+              <option>Active</option>
+              <option>Inactive</option>
+              <option>Pending Assignment</option>
+            </select>
+            <label>Service Record Notes:</label>
+            <textarea name="notes" placeholder="Optional notes..."></textarea>
+            <button type="submit">Add Student Assistant</button>
+          </form>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <script src="../js/hr-student-assistants.js"></script>
+</body>
+</html>

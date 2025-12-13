@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Office Head Dashboard</title>
+  <link rel="stylesheet" href="../css/office-head-dashboard.css" />
+</head>
+<body>
+  <div class="sidebar">
+    <div class="logo-container">
+      <img src="../assets/cjclogo.jpg" alt="Logo" class="logo-img" />
+    </div>
+    <h2>Office Head</h2>
+    <ul>
+      <li><a href="../html/dtr.monitoring.html">👤 DTR Monitoring</a></li>
+      <li><a href="../html/office-head-dashboard.html" class="active">📄 Office Head Dashboard</a></li>
+      <li><a href="../html/evaluation-form.html">📄 Evaluation Form</a></li>
+      <li><a href="../html/office-head-requests-review.html">📤 Requests Review</a></li>
+      <li><a href="../html/office-head-account-settings.html">⚙️ Account Settings</a></li>
+    </ul>
+
+    <!-- Logout at the bottom -->
+    <div class="sidebar-bottom">
+      <a href="../php/logout.php">🚪 Logout</a>
+    </div>
+  </div>
+
+  <div class="dashboard-container">
+    <header class="dashboard-header">
+      <h1>Office Head Dashboard</h1>
+      <div class="status-dot"></div>
+    </header>
+
+    <section class="stats-row">
+      <div class="stat-card">
+        <p class="stat-title">Assigned Student Assistants</p>
+        <p class="stat-value" id="assignedCount">—</p>
+      </div>
+      <div class="stat-card">
+        <p class="stat-title">Attendance Today</p>
+        <p class="stat-value" id="attendanceCount">—</p>
+      </div>
+      <div class="stat-card">
+        <p class="stat-title">Evaluation Status</p>
+        <p class="stat-value" id="evalStatus">—</p>
+      </div>
+    </section>
+
+    <section class="dtr-summary">
+      <h2>DTR Summary per Assistant</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Attendance</th>
+            <th>Time In / Out</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="dtrTableBody">
+          <!-- Fetched dynamically -->
+        </tbody>
+      </table>
+
+      <div class="actions">
+        <button onclick="approveOvertime()">Approve Overtime</button>
+        <button onclick="markAbsence()">Mark Absence</button>
+      </div>
+    </section>
+  </div>
+
+  <script src="../js/office-head-dashboard.js"></script>
+</body>
+</html>

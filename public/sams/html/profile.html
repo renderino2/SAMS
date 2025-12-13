@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>👤 Profile Page - SAMS</title>
+   <link rel="stylesheet" href="../css/profile.css" />
+  <script defer src="js/profile.js"></script>
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="logo-container">
+        <img src="../assets/final-cjc-logo-1.png" alt="CJC Logo" width="80">
+        <h2>SAMS</h2>
+      </div>
+      <nav>
+        <ul>
+          <li><a href="../html/sa-dashboard.html">🏠 Student Assistant Dashboard</a></li>
+          <li><a href="../html/attendance.html">🕘 Attendance Page</a></li>
+          <li><a href="../html/requests.html">📤 Requests Page</a></li>
+          <li><a href="../html/sa-skill-inventory.html">🧠 Skill Inventory (Self)</a></li>
+          <li><a href="../html/profile.html" class="active">👤 Profile Page</a></li>
+          <li><a href="../html/sa-settings.html">⚙️ Account Settings</a></li>
+        </ul>
+      </nav>
+    </aside>
+
+    <main class="main-content">
+      <header class="page-header">
+        <h1>👤 My Profile</h1>
+        <p class="subtext">View and manage your personal and academic details.</p>
+      </header>
+
+      <section class="card">
+  <h2>📄 Basic Information</h2>
+  <div class="profile-info" id="profileData">
+    <p><strong>Student ID:</strong> <span id="sid">—</span></p>
+    <p><strong>Full Name:</strong> <span id="fullName">—</span></p>
+    <p><strong>Email:</strong> <span id="email">—</span></p>
+    <p><strong>Contact:</strong> <span id="contact">—</span></p>
+    <p><strong>Course:</strong> <span id="course">—</span></p>
+    <p><strong>Year Level:</strong> <span id="yearLevel">—</span></p>
+    <p><strong>Section:</strong> <span id="section">—</span></p>
+  </div>
+</section>
+
+      <section class="card">
+        <h2>✏️ Update Contact Info</h2>
+        <form id="updateForm">
+          <input type="hidden" name="action" value="update_contact" />
+          <label for="newContact">New Contact Number:</label>
+          <input type="text" name="newContact" id="newContact" required pattern="^09\d{9}$" />
+          <button type="submit">Update Contact</button>
+        </form>
+        <p id="updateMsg"></p>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

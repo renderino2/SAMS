@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Requests Review – Office Head</title>
+  <link rel="stylesheet" href="../css/office-head-requests-review.css" />
+</head>
+<body>
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="logo-container">
+      <img src="../assets/cjclogo.jpg" alt="Cor Jesu Logo" class="logo-img" />
+    </div>
+    <h2>Office Head</h2>
+    <ul>
+      <li><a href="../html/dtr.monitoring.html">👤 DTR Monitoring</a></li>
+      <li><a href="../html/office-head-dashboard.html">📄 Office Head Dashboard</a></li>
+      <li><a href="../html/evaluation-form.html">📄 Evaluation Form</a></li>
+      <li><a href="../html/office-head-requests-review.html" class="active">📤 Requests Review</a></li>
+      <li><a href="../html/office-head-account-settings.html">⚙️ Account Settings</a></li>
+    </ul>
+  </div>
+
+  <!-- Main Content -->
+  <div class="main-content">
+    <div class="header-bar">
+      <h1>📄 Review Student Assistant Requests</h1>
+      <div class="notifications">
+        🔔 You have <span id="pendingCount">0</span> pending requests.
+      </div>
+    </div>
+
+    <!-- Filters -->
+    <section class="filters">
+      <input type="text" id="searchInput" placeholder="Search by name or ID" />
+      <select id="typeFilter">
+        <option value="">All Types</option>
+        <option value="Overtime">Overtime</option>
+        <option value="Absence">Absence</option>
+        <option value="OOAT">Official Outside Assignment (OOAT)</option>
+      </select>
+      <select id="statusFilter">
+        <option value="">All Statuses</option>
+        <option value="Pending">Pending</option>
+        <option value="Approved">Approved</option>
+        <option value="Rejected">Rejected</option>
+      </select>
+    </section>
+
+    <!-- Request Table -->
+    <section class="request-table">
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Student ID</th>
+            <th>Request Type</th>
+            <th>Date</th>
+            <th>Status</th>
+            <th>Reason</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody id="requestBody">
+          <tr>
+            <td colspan="7" style="text-align:center; color:#999;">No requests found.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+  </div>
+
+  <script src="../js/office-head-requests-review.js"></script>
+</body>
+</html>

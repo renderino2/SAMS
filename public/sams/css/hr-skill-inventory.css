@@ -1,0 +1,174 @@
+body {
+  font-family: 'Segoe UI', sans-serif;
+  background-color: #f2f2f2;
+}
+
+.layout {
+  display: flex;
+  min-height: 100vh;
+}
+
+.sidebar {
+  width: 250px;
+  background-color: #b71c1c;
+  color: white;
+  padding: 20px;
+  box-sizing: border-box;
+}
+
+.logo-container {
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+
+.sidebar h2 {
+  text-align: center;
+}
+
+.sidebar nav ul {
+  list-style: none;
+  padding: 0;
+}
+
+.sidebar nav ul li {
+  margin: 10px 0;
+}
+
+.sidebar nav ul li a {
+  color: white;
+  text-decoration: none;
+  padding: 10px;
+  border-radius: 6px;
+  display: block;
+  font-weight: 500;
+}
+
+.sidebar nav ul li a:hover,
+.sidebar nav ul li.active a {
+  background-color: #a31616;
+}
+
+.main-content {
+  flex: 1;
+  background-color: #f2f2f2;
+  padding: 30px;
+}
+
+.container {
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.page-header {
+  background-color: #b71c1c;
+  color: white;
+  padding: 20px;
+  text-align: center;
+  border-radius: 8px;
+  margin-bottom: 20px;
+}
+
+.filters {
+  display: flex;
+  gap: 15px;
+  margin-bottom: 20px;
+}
+
+.filters input,
+.filters select {
+  flex: 1;
+  padding: 10px;
+  font-size: 14px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+}
+
+.table-section table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 0 8px rgba(0, 0, 0, 0.05);
+}
+
+th,
+td {
+  padding: 12px;
+  border-bottom: 1px solid #ddd;
+}
+
+th {
+  background-color: #eee;
+  text-align: left;
+}
+
+.add-skill {
+  margin-top: 30px;
+  background: #fff;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+}
+
+.add-skill h2 {
+  color: #b71c1c;
+  margin-bottom: 20px;
+}
+
+.add-skill form {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.form-group label {
+  margin-bottom: 5px;
+  font-weight: 600;
+}
+
+.form-group input,
+.form-group select,
+.form-group textarea {
+  padding: 10px;
+  font-size: 14px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+}
+
+.add-skill button {
+  padding: 12px;
+  background-color: #b71c1c;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-weight: bold;
+  cursor: pointer;
+  margin-top: 10px;
+}
+
+.add-skill button:hover {
+  background-color: #a31616;
+}
+
+.badge {
+  padding: 5px 10px;
+  font-size: 13px;
+  border-radius: 12px;
+  font-weight: bold;
+}
+
+.verified {
+  background-color: #c8e6c9;
+  color: #256029;
+}
+
+.not-verified {
+  background-color: #ffcdd2;
+  color: #c62828;
+}
