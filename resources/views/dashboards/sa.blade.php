@@ -21,28 +21,30 @@
                 <div class="col-span-12 sm:col-span-6 xl:col-span-4 intro-y">
                     <div class="report-box zoom-in">
                         <div class="box p-5">
-                            <div class="flex items-center justify-between">
-                                <i data-lucide="log-in" class="report-box__icon text-primary mr-auto"></i>
-                                <button id="timeInBtn" class="btn btn-primary btn-sm text-white">
-                                    <i data-lucide="log-in" class="w-4 h-4 mr-1"></i> Time In
-                                </button>
+                            <div class="flex items-center">
+                                <i data-lucide="log-in" class="report-box__icon text-primary mr-3"></i>
+                                <div>
+                                    <div class="text-base font-medium">Time In</div>
+                                    <div class="text-xs text-slate-500">View and manage in Attendance page</div>
+                                </div>
                             </div>
                             <div class="text-3xl font-medium leading-8 mt-6" id="timeIn">—</div>
-                            <div class="text-base text-slate-500 mt-1">Time In</div>
+                            <div class="text-xs text-slate-400 mt-1">Read-only summary</div>
                         </div>
                     </div>
                 </div>
                 <div class="col-span-12 sm:col-span-6 xl:col-span-4 intro-y">
                     <div class="report-box zoom-in">
                         <div class="box p-5">
-                            <div class="flex items-center justify-between">
-                                <i data-lucide="log-out" class="report-box__icon text-warning mr-auto"></i>
-                                <button id="timeOutBtn" class="btn btn-warning btn-sm text-white" disabled>
-                                    <i data-lucide="log-out" class="w-4 h-4 mr-1"></i> Time Out
-                                </button>
+                            <div class="flex items-center">
+                                <i data-lucide="log-out" class="report-box__icon text-warning mr-3"></i>
+                                <div>
+                                    <div class="text-base font-medium">Time Out</div>
+                                    <div class="text-xs text-slate-500">View and manage in Attendance page</div>
+                                </div>
                             </div>
                             <div class="text-3xl font-medium leading-8 mt-6" id="timeOut">—</div>
-                            <div class="text-base text-slate-500 mt-1">Time Out</div>
+                            <div class="text-xs text-slate-400 mt-1">Read-only summary</div>
                         </div>
                     </div>
                 </div>
@@ -153,8 +155,6 @@
         const timeInEl = document.getElementById('timeIn');
         const timeOutEl = document.getElementById('timeOut');
         const totalHoursEl = document.getElementById('totalHours');
-        const timeInBtn = document.getElementById('timeInBtn');
-        const timeOutBtn = document.getElementById('timeOutBtn');
         const lastTimeInEl = document.getElementById('lastTimeIn');
         const contractStatusEl = document.getElementById('contractStatus');
         const lastRequestEl = document.getElementById('lastRequest');
@@ -162,11 +162,12 @@
 
         // Set current date
         const today = new Date();
-        currentDateEl.textContent = today.toLocaleDateString('en-US', {
+        currentDateEl.textContent = today.toLocaleDateString('en-PH', {
             weekday: 'long',
             year: 'numeric',
             month: 'long',
-            day: 'numeric'
+            day: 'numeric',
+            timeZone: 'Asia/Manila'
         });
 
         // Calculate formatted time from minutes
@@ -283,25 +284,6 @@
                             }
                         }
                         
-                        // Update button states
-                        if (data.time_in && !data.time_out) {
-                            // Timed in but not out
-                            timeInBtn.disabled = true;
-                            timeInBtn.innerHTML = '<i data-lucide="check-circle" class="w-4 h-4 mr-1"></i> Timed In';
-                            timeOutBtn.disabled = false;
-                        } else if (data.time_in && data.time_out) {
-                            // Completed
-                            timeInBtn.disabled = true;
-                            timeInBtn.innerHTML = '<i data-lucide="check-circle" class="w-4 h-4 mr-1"></i> Timed In';
-                            timeOutBtn.disabled = true;
-                            timeOutBtn.innerHTML = '<i data-lucide="check-circle" class="w-4 h-4 mr-1"></i> Timed Out';
-                        } else {
-                            // Not timed in
-                            timeInBtn.disabled = false;
-                            timeInBtn.innerHTML = '<i data-lucide="log-in" class="w-4 h-4 mr-1"></i> Time In';
-                            timeOutBtn.disabled = true;
-                        }
-                        
                         // Update recent activity
                         if (data.time_in) {
                             lastTimeInEl.textContent = 'Today at ' + data.time_in;
@@ -315,9 +297,6 @@
                         timeOutEl.textContent = '—';
                         totalHoursEl.textContent = '—';
                         lastTimeInEl.textContent = '—';
-                        timeInBtn.disabled = false;
-                        timeInBtn.innerHTML = '<i data-lucide="log-in" class="w-4 h-4 mr-1"></i> Time In';
-                        timeOutBtn.disabled = true;
                         
                         // Clear interval if exists
                         if (totalTimeUpdateInterval) {

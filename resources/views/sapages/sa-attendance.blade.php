@@ -631,7 +631,8 @@
                 }, 30000);
             }
 
-            document.addEventListener('DOMContentLoaded', init);
+            // Call init immediately (script is already loaded after DOM content)
+            init();
         })();
     </script>
 @endsection
