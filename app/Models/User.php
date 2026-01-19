@@ -29,6 +29,7 @@ class User extends Authenticatable
         'contact',
         'gender',
         'active',
+        'status',
         'profile_photo',
         'address',
         'guardian_address',

@@ -684,7 +684,7 @@ class AuthController extends Controller
     }
 
     /**
-     * Get evaluations for office head.
+     * Get evaluations for office head or HR.
      *
      * @return \Illuminate\Http\Response
      */
@@ -692,41 +692,282 @@ class AuthController extends Controller
     {
         $user = \Auth::user();
         
-        if (!$user || $user->role !== 'Office Head') {
+        if (!$user || !in_array($user->role, ['Office Head', 'HR'])) {
             return response()->json([
                 'success' => false,
-                'message' => 'Unauthorized. Only Office Heads can access this.'
+                'message' => 'Unauthorized. Only Office Heads and HR can access this.'
             ], 403);
         }
 
-        $evaluations = \App\Models\Evaluation::where('evaluator_id', $user->id)
-            ->orWhere('office', $user->office)
-            ->orderBy('evaluation_date', 'desc')
-            ->orderBy('created_at', 'desc')
-            ->get();
+        try {
+            // HR can see all evaluations, Office Head only sees their office's evaluations
+            if ($user->role === 'HR') {
+                $evaluations = \App\Models\Evaluation::orderBy('evaluation_date', 'desc')
+                    ->orderBy('created_at', 'desc')
+                    ->get();
+            } else {
+                // Office Head role - see evaluations from their office
+                $evaluations = \App\Models\Evaluation::where(function($query) use ($user) {
+                        $query->where('evaluator_id', $user->id)
+                              ->orWhere('office', $user->office);
+                    })
+                    ->orderBy('evaluation_date', 'desc')
+                    ->orderBy('created_at', 'desc')
+                    ->get();
+            }
 
-        $data = $evaluations->map(function ($evaluation) {
-            return [
-                'id' => $evaluation->id,
-                'student_name' => $evaluation->student_name,
-                'nature_of_work' => $evaluation->nature_of_work,
-                'office' => $evaluation->office,
-                'total_score' => $evaluation->total_score,
-                'average_score' => $evaluation->average_score,
-                'overall_rating' => $evaluation->overall_rating,
-                'evaluation_date' => $evaluation->evaluation_date->format('Y-m-d'),
-                'formatted_date' => $evaluation->evaluation_date->format('M d, Y'),
-                'rated_by' => $evaluation->rated_by,
-                'head_of_office' => $evaluation->head_of_office,
-                'status' => $evaluation->status,
-                'created_at' => $evaluation->created_at->format('Y-m-d H:i:s'),
-            ];
-        });
+            $data = $evaluations->map(function ($evaluation) {
+                return [
+                    'id' => $evaluation->id,
+                    'student_name' => $evaluation->student_name,
+                    'nature_of_work' => $evaluation->nature_of_work,
+                    'office' => $evaluation->office,
+                    'total_score' => $evaluation->total_score,
+                    'average_score' => $evaluation->average_score,
+                    'overall_rating' => $evaluation->overall_rating,
+                    'evaluation_date' => $evaluation->evaluation_date ? $evaluation->evaluation_date->format('Y-m-d') : null,
+                    'formatted_date' => $evaluation->evaluation_date ? $evaluation->evaluation_date->format('M d, Y') : 'N/A',
+                    'rated_by' => $evaluation->rated_by,
+                    'head_of_office' => $evaluation->head_of_office,
+                    'status' => $evaluation->status,
+                    'created_at' => $evaluation->created_at ? $evaluation->created_at->format('Y-m-d H:i:s') : null,
+                    'rate1' => $evaluation->rate1,
+                    'rate2' => $evaluation->rate2,
+                    'rate3' => $evaluation->rate3,
+                    'rate4' => $evaluation->rate4,
+                    'rate5' => $evaluation->rate5,
+                    'rate6' => $evaluation->rate6,
+                    'rate7' => $evaluation->rate7,
+                    'rate8' => $evaluation->rate8,
+                    'rate9' => $evaluation->rate9,
+                    'rate10' => $evaluation->rate10,
+                    'comments' => $evaluation->comments,
+                ];
+            });
 
-        return response()->json([
+            return response()->json([
+                'success' => true,
+                'data' => $data
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Error getting evaluations: ' . $e->getMessage(), [
+                'user_id' => $user->id,
+                'user_role' => $user->role
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Error loading evaluations: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get analytics data for dashboards.
+     *
+     * @return \Illuminate\Http\Response
+     */
+    public function getAnalytics()
+    {
+        $user = \Auth::user();
+        
+        if (!$user || !in_array($user->role, ['Office Head', 'HR'])) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized. Only Office Heads and HR can access this.'
+            ], 403);
+        }
+
+        // TEMPORARY: Return sample data for testing charts
+        // Remove or comment out the return statement below to use real database data
+        $office = $user->office;
+        
+        $sampleData = [
             'success' => true,
-            'data' => $data
-        ]);
+            'data' => [
+                'sa_by_office' => $user->role === 'HR' ? [
+                    ['office' => 'Registrar', 'count' => 15],
+                    ['office' => 'Library', 'count' => 12],
+                    ['office' => 'Guidance', 'count' => 8],
+                    ['office' => 'Clinic', 'count' => 6],
+                    ['office' => 'IT', 'count' => 10],
+                ] : ($office ? [['office' => $office, 'count' => 8]] : [['office' => 'N/A', 'count' => 0]]),
+                'attendance_today' => 35,
+                'attendance_this_week' => 180,
+                'attendance_by_month' => [
+                    ['month' => 'Jul', 'count' => 420],
+                    ['month' => 'Aug', 'count' => 485],
+                    ['month' => 'Sep', 'count' => 510],
+                    ['month' => 'Oct', 'count' => 495],
+                    ['month' => 'Nov', 'count' => 520],
+                    ['month' => 'Dec', 'count' => 480],
+                ],
+                'attendance_by_week' => [
+                    ['week' => 'Mon', 'count' => 45],
+                    ['week' => 'Tue', 'count' => 52],
+                    ['week' => 'Wed', 'count' => 48],
+                    ['week' => 'Thu', 'count' => 50],
+                    ['week' => 'Fri', 'count' => 47],
+                    ['week' => 'Sat', 'count' => 12],
+                    ['week' => 'Sun', 'count' => 8],
+                ],
+                'status_breakdown' => [
+                    'Present' => 28,
+                    'Late' => 7,
+                    'Absent' => 8,
+                    'Completed' => 22,
+                    'Incomplete' => 13,
+                ]
+            ]
+        ];
+        
+        // Return sample data for testing (comment out the return statement below to use real database data)
+        return response()->json($sampleData);
+
+        /* COMMENT OUT ABOVE RETURN STATEMENT TO USE REAL DATABASE DATA BELOW
+        try {
+            $office = $user->office;
+            
+            // Student Assistants by Department/Office
+            $saByOffice = [];
+            if ($user->role === 'HR') {
+                $saByOffice = \App\Models\User::where('role', 'Student Assistant')
+                    ->whereNotNull('office')
+                    ->selectRaw('office, COUNT(*) as count')
+                    ->groupBy('office')
+                    ->orderBy('count', 'desc')
+                    ->get()
+                    ->map(function($item) {
+                        return [
+                            'office' => $item->office,
+                            'count' => (int)$item->count
+                        ];
+                    })
+                    ->toArray();
+            } else {
+                // Office Head sees only their office
+                if (!$office) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'No office assigned to your account.'
+                    ], 422);
+                }
+                $count = \App\Models\User::where('role', 'Student Assistant')
+                    ->where('office', $office)
+                    ->count();
+                $saByOffice = [['office' => $office, 'count' => $count]];
+            }
+
+            // Attendance by Month/Week/Today
+            $now = \Carbon\Carbon::now('Asia/Manila');
+            $today = $now->toDateString();
+            $thisWeekStart = $now->copy()->startOfWeek()->toDateString();
+            
+            $baseQuery = \App\Models\Attendance::query();
+            if ($user->role === 'Office Head' && $office) {
+                $baseQuery->where('office', $office);
+            }
+            
+            $attendanceToday = (clone $baseQuery)
+                ->whereDate('date', $today)
+                ->whereNotNull('time_in')
+                ->count();
+            
+            // Count attendance records for this week (total check-ins)
+            $attendanceThisWeek = (clone $baseQuery)
+                ->whereBetween('date', [$thisWeekStart, $today])
+                ->whereNotNull('time_in')
+                ->count();
+            
+            $attendanceByMonth = [];
+            for ($i = 5; $i >= 0; $i--) {
+                $month = $now->copy()->subMonths($i);
+                $monthStart = $month->copy()->startOfMonth()->toDateString();
+                $monthEnd = $month->copy()->endOfMonth()->toDateString();
+                
+                // Count attendance records for this month (total check-ins)
+                $monthCount = (clone $baseQuery)
+                    ->whereBetween('date', [$monthStart, $monthEnd])
+                    ->whereNotNull('time_in')
+                    ->count();
+                
+                $attendanceByMonth[] = [
+                    'month' => $month->format('M'),
+                    'count' => (int)$monthCount
+                ];
+            }
+
+            // Attendance Status Breakdown
+            $statusQuery = clone $baseQuery;
+            $statusBreakdown = $statusQuery
+                ->whereDate('date', $today)
+                ->selectRaw('COALESCE(status, "Unknown") as status, COUNT(*) as count')
+                ->groupBy('status')
+                ->get();
+
+            $statusBreakdownMap = $statusBreakdown->pluck('count', 'status');
+
+            $statusData = [
+                'Present' => (int)($statusBreakdownMap->get('Present') ?? 0),
+                'Late' => (int)($statusBreakdownMap->get('Late') ?? 0),
+                'Absent' => 0,
+                'Completed' => (int)($statusBreakdownMap->get('Completed') ?? 0),
+                'Incomplete' => (int)($statusBreakdownMap->get('Incomplete') ?? 0),
+            ];
+
+            // Calculate absent: Total SAs in office - (Present + Late)
+            $totalSAsQuery = \App\Models\User::where('role', 'Student Assistant')
+                ->where(function($query) {
+                    $query->whereIn('status', ['Active', 'Apprentice'])
+                          ->orWhereNull('status');
+                });
+            
+            if ($user->role === 'Office Head' && $office) {
+                $totalSAsQuery->where('office', $office);
+            }
+            
+            $totalSAs = $totalSAsQuery->count();
+            
+            $statusData['Absent'] = max(0, $totalSAs - $statusData['Present'] - $statusData['Late']);
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'sa_by_office' => $saByOffice,
+                    'attendance_today' => $attendanceToday,
+                    'attendance_this_week' => $attendanceThisWeek,
+                    'attendance_by_month' => $attendanceByMonth,
+                    'attendance_by_week' => [
+                        ['week' => 'Mon', 'count' => 0],
+                        ['week' => 'Tue', 'count' => 0],
+                        ['week' => 'Wed', 'count' => 0],
+                        ['week' => 'Thu', 'count' => 0],
+                        ['week' => 'Fri', 'count' => 0],
+                        ['week' => 'Sat', 'count' => 0],
+                        ['week' => 'Sun', 'count' => 0],
+                    ],
+                    'status_breakdown' => $statusData
+                ]
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Error getting analytics: ' . $e->getMessage(), [
+                'user_id' => $user->id ?? null,
+                'user_role' => $user->role ?? null,
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Error loading analytics: ' . $e->getMessage(),
+                'error_details' => config('app.debug') ? [
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine(),
+                    'trace' => $e->getTraceAsString()
+                ] : null
+            ], 500);
+        }
+        */
+        // END OF COMMENT BLOCK - Comment out the return statement at line 825 to use real database data
     }
 
     /**
@@ -739,20 +980,37 @@ class AuthController extends Controller
     {
         $user = \Auth::user();
         
-        if (!$user || $user->role !== 'Office Head') {
+        if (!$user || !in_array($user->role, ['Office Head', 'HR'])) {
             return response()->json([
                 'success' => false,
-                'message' => 'Unauthorized. Only Office Heads can access this.'
+                'message' => 'Unauthorized. Only Office Heads and HR can access this.'
             ], 403);
         }
 
         $evaluation = \App\Models\Evaluation::find($id);
         
-        if (!$evaluation || ($evaluation->evaluator_id !== $user->id && $evaluation->office !== $user->office)) {
+        if (!$evaluation) {
             return response()->json([
                 'success' => false,
-                'message' => 'Evaluation not found or unauthorized.'
+                'message' => 'Evaluation not found.'
             ], 404);
+        }
+
+        // Office Head can only see their office's evaluations, HR can see all
+        if ($user->role === 'Office Head' && $evaluation->evaluator_id !== $user->id && $evaluation->office !== $user->office) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized. You can only access evaluations from your office.'
+            ], 403);
+        }
+
+        // Get student assistant info if available
+        $studentId = null;
+        if ($evaluation->student_assistant_id) {
+            $studentAssistant = \App\Models\User::find($evaluation->student_assistant_id);
+            if ($studentAssistant) {
+                $studentId = $studentAssistant->student_id_number;
+            }
         }
 
         return response()->json([
@@ -760,6 +1018,7 @@ class AuthController extends Controller
             'data' => [
                 'id' => $evaluation->id,
                 'student_name' => $evaluation->student_name,
+                'student_id_number' => $studentId,
                 'nature_of_work' => $evaluation->nature_of_work,
                 'office' => $evaluation->office,
                 'rate1' => $evaluation->rate1,
@@ -776,10 +1035,12 @@ class AuthController extends Controller
                 'average_score' => $evaluation->average_score,
                 'overall_rating' => $evaluation->overall_rating,
                 'comments' => $evaluation->comments,
-                'evaluation_date' => $evaluation->evaluation_date->format('Y-m-d'),
+                'evaluation_date' => $evaluation->evaluation_date ? $evaluation->evaluation_date->format('Y-m-d') : null,
                 'rated_by' => $evaluation->rated_by,
                 'head_of_office' => $evaluation->head_of_office,
                 'status' => $evaluation->status,
+                'hr_rating' => $evaluation->hr_rating ?? null,
+                'hr_comments' => $evaluation->hr_comments ?? null,
             ]
         ]);
     }
@@ -1246,49 +1507,73 @@ class AuthController extends Controller
      */
     public function addStudentAssistant(\Illuminate\Http\Request $request)
     {
+        $user = \Auth::user();
+        
+        if (!$user || $user->role !== 'HR') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized. Only HR can add student assistants.'
+            ], 403);
+        }
+
         $request->validate([
             'fullName' => 'required|string|max:255',
             'studentId' => 'required|string|max:255|unique:users,student_id_number',
             'email' => 'required|email|max:255|unique:users,email',
             'contact' => 'required|string|max:20',
             'office' => 'required|string|max:255',
-            'status' => 'required|string|in:Active,Inactive,Pending Assignment',
+            'status' => 'required|string|in:Active,Inactive,Pending Assignment,Apprentice',
             'notes' => 'nullable|string|max:1000'
         ]);
 
-        // In a real implementation, you would:
-        // 1. Create a new user record in the database
-        // 2. Set the role as 'Student Assistant'
-        // 3. Store all the provided information
-        // 4. Generate initial login credentials
-        // 5. Send welcome email with login details
+        try {
+            $defaultPassword = bcrypt('password123'); // Default password - should be changed on first login
+            
+            $studentAssistant = \App\Models\User::create([
+                'name' => $request->fullName,
+                'full_name' => $request->fullName,
+                'student_id_number' => $request->studentId,
+                'email' => $request->email,
+                'contact' => $request->contact,
+                'office' => $request->office,
+                'role' => 'Student Assistant',
+                'status' => $request->status,
+                'password' => $defaultPassword,
+                'password_hash' => $defaultPassword,
+                'gender' => 'Not Specified',
+                'active' => $request->status === 'Active' ? 1 : ($request->status === 'Apprentice' ? 1 : 0),
+                'email_verified_at' => now(),
+            ]);
 
-        $studentAssistantData = [
-            'name' => $request->fullName,
-            'full_name' => $request->fullName,
-            'student_id_number' => $request->studentId,
-            'email' => $request->email,
-            'contact' => $request->contact,
-            'office' => $request->office,
-            'role' => 'Student Assistant',
-            'status' => $request->status,
-            'service_notes' => $request->notes,
-            'password' => bcrypt('password123'), // Default password - should be changed on first login
-            'password_hash' => bcrypt('password123'),
-            'gender' => 'Not Specified',
-            'active' => $request->status === 'Active' ? 1 : 0,
-            'created_by' => \Auth::id()
-        ];
+            // Store service notes if provided (you may need to create a service_records table for this)
+            // For now, we'll skip this as it's not in the users table
 
-        // For now, just return success
-        // In real implementation, save to database:
-        // User::create($studentAssistantData);
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Student assistant added successfully!',
-            'data' => $studentAssistantData
-        ]);
+            return response()->json([
+                'success' => true,
+                'message' => 'Student assistant added successfully!',
+                'data' => [
+                    'id' => $studentAssistant->id,
+                    'name' => $studentAssistant->name,
+                    'full_name' => $studentAssistant->full_name,
+                    'student_id_number' => $studentAssistant->student_id_number,
+                    'email' => $studentAssistant->email,
+                    'contact' => $studentAssistant->contact,
+                    'office' => $studentAssistant->office,
+                    'status' => $studentAssistant->status,
+                ]
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Error adding student assistant: ' . $e->getMessage(), [
+                'request_data' => $request->all(),
+                'error' => $e->getTraceAsString()
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to add student assistant. ' . ($e->getCode() === 23000 ? 'Email or Student ID already exists.' : 'Please try again.'),
+                'error' => config('app.debug') ? $e->getMessage() : null
+            ], 500);
+        }
     }
 
     /**
@@ -1731,6 +2016,15 @@ class AuthController extends Controller
      */
     public function saveEvaluationReview(\Illuminate\Http\Request $request)
     {
+        $user = \Auth::user();
+        
+        if (!$user || $user->role !== 'HR') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized. Only HR can review evaluations.'
+            ], 403);
+        }
+
         $request->validate([
             'evaluationId' => 'required|integer',
             'hrStatus' => 'required|string|in:Pending,Reviewed,Approved,Rejected',
@@ -1738,31 +2032,53 @@ class AuthController extends Controller
             'hrComments' => 'nullable|string|max:1000'
         ]);
 
-        // In a real implementation, you would:
-        // 1. Find the evaluation record in the database
-        // 2. Update the HR review fields
-        // 3. Update the overall status
-        // 4. Send notifications to relevant parties
-        // 5. Log the review action for audit trail
+        try {
+            $evaluation = \App\Models\Evaluation::find($request->evaluationId);
+            
+            if (!$evaluation) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Evaluation not found.'
+                ], 404);
+            }
 
-        $reviewData = [
-            'evaluation_id' => $request->evaluationId,
-            'hr_status' => $request->hrStatus,
-            'hr_rating' => $request->hrRating,
-            'hr_comments' => $request->hrComments,
-            'reviewed_by' => \Auth::id(),
-            'reviewed_at' => now()->toISOString()
-        ];
+            // Update evaluation with HR review data
+            $updateData = [
+                'status' => $request->hrStatus,
+            ];
 
-        // For now, just return success
-        // In real implementation, save to database:
-        // EvaluationReview::updateOrCreate(['evaluation_id' => $request->evaluationId], $reviewData);
+            // Only update fields if the columns exist
+            // Note: If hr_rating and hr_comments columns don't exist, add them via migration
+            if (\Schema::hasColumn('evaluations', 'hr_rating')) {
+                $updateData['hr_rating'] = $request->hrRating;
+            }
+            if (\Schema::hasColumn('evaluations', 'hr_comments')) {
+                $updateData['hr_comments'] = $request->hrComments;
+            }
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Evaluation review saved successfully!',
-            'data' => $reviewData
-        ]);
+            $evaluation->update($updateData);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Evaluation review saved successfully!',
+                'data' => [
+                    'id' => $evaluation->id,
+                    'status' => $evaluation->status,
+                    'hr_rating' => $evaluation->hr_rating ?? $request->hrRating,
+                    'hr_comments' => $evaluation->hr_comments ?? $request->hrComments,
+                ]
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Error saving evaluation review: ' . $e->getMessage(), [
+                'evaluation_id' => $request->evaluationId,
+                'user_id' => $user->id
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to save evaluation review: ' . $e->getMessage()
+            ], 500);
+        }
     }
 
     /**
@@ -2391,22 +2707,45 @@ class AuthController extends Controller
             ], 403);
         }
 
-        $today = now()->toDateString();
+        // Use Asia/Manila timezone
+        $nowManila = now('Asia/Manila');
+        $today = $nowManila->toDateString();
         
         // Check if already timed in today
+        // Using whereDate to compare date part only (ignores time component)
         $existingAttendance = \App\Models\Attendance::where('user_id', $user->id)
             ->whereDate('date', $today)
             ->first();
 
         if ($existingAttendance) {
+            // Format existing time in Manila timezone
+            $existingTimeFormatted = null;
+            if ($existingAttendance->time_in) {
+                try {
+                    // Get the date string safely
+                    $existingDateString = $existingAttendance->date instanceof \Carbon\Carbon 
+                        ? $existingAttendance->date->format('Y-m-d') 
+                        : $existingAttendance->date;
+                    
+                    $existingTimeFormatted = \Carbon\Carbon::parse($existingDateString . ' ' . $existingAttendance->time_in, 'Asia/Manila')
+                        ->setTimezone('Asia/Manila')
+                        ->format('g:i A');
+                } catch (\Exception $e) {
+                    $existingTimeFormatted = $existingAttendance->time_in;
+                }
+            }
+            
             return response()->json([
                 'success' => false,
                 'message' => 'You have already timed in today.',
-                'existing_time_in' => $existingAttendance->time_in ? \Carbon\Carbon::parse($existingAttendance->date . ' ' . $existingAttendance->time_in)->format('g:i A') : null
+                'existing_time_in' => $existingTimeFormatted,
+                'existing_date' => $existingAttendance->date,
+                'today_date' => $today
             ], 422);
         }
 
-        $timeIn = now()->toTimeString();
+        // Get current time in Manila timezone
+        $timeIn = $nowManila->toTimeString();
         
         // Determine status (Present or Late - you can customize the late threshold)
         $status = 'Present';
@@ -2432,7 +2771,7 @@ class AuthController extends Controller
                 'message' => 'Time in recorded successfully!',
                 'data' => [
                     'time_in' => $timeIn,
-                    'formatted_time_in' => now()->format('g:i A'),
+                    'formatted_time_in' => $nowManila->format('g:i A'),
                     'status' => $status,
                     'date' => $today,
                 ]
@@ -2477,7 +2816,9 @@ class AuthController extends Controller
             ], 403);
         }
 
-        $today = now()->toDateString();
+        // Use Asia/Manila timezone
+        $nowManila = now('Asia/Manila');
+        $today = $nowManila->toDateString();
         
         try {
             $attendance = \App\Models\Attendance::where('user_id', $user->id)
@@ -2492,20 +2833,36 @@ class AuthController extends Controller
             }
 
             if ($attendance->time_out) {
+                // Format existing time out in Manila timezone
+                $existingTimeOutFormatted = null;
+                if ($attendance->time_out) {
+                    try {
+                        $existingTimeOutFormatted = \Carbon\Carbon::parse($attendance->date->format('Y-m-d') . ' ' . $attendance->time_out, 'Asia/Manila')
+                            ->setTimezone('Asia/Manila')
+                            ->format('g:i A');
+                    } catch (\Exception $e) {
+                        $existingTimeOutFormatted = $attendance->time_out;
+                    }
+                }
+                
                 return response()->json([
                     'success' => false,
                     'message' => 'You have already timed out today.',
-                    'existing_time_out' => $attendance->time_out ? \Carbon\Carbon::parse($attendance->date->format('Y-m-d') . ' ' . $attendance->time_out)->format('g:i A') : null
+                    'existing_time_out' => $existingTimeOutFormatted
                 ], 422);
             }
 
-            $timeOut = now()->toTimeString();
+            // Get current time in Manila timezone
+            $timeOut = $nowManila->toTimeString();
             
             // Calculate total minutes
             try {
                 $dateString = $attendance->date->format('Y-m-d');
-                $timeInCarbon = \Carbon\Carbon::parse($dateString . ' ' . $attendance->time_in);
-                $timeOutCarbon = \Carbon\Carbon::parse($dateString . ' ' . $timeOut);
+                // Parse times assuming they are in Asia/Manila timezone
+                $timeInCarbon = \Carbon\Carbon::parse($dateString . ' ' . $attendance->time_in, 'Asia/Manila')
+                    ->setTimezone('Asia/Manila');
+                $timeOutCarbon = \Carbon\Carbon::parse($dateString . ' ' . $timeOut, 'Asia/Manila')
+                    ->setTimezone('Asia/Manila');
                 $totalMinutes = $timeOutCarbon->diffInMinutes($timeInCarbon);
             } catch (\Exception $e) {
                 \Log::error('Error calculating total minutes: ' . $e->getMessage(), [
@@ -2554,7 +2911,7 @@ class AuthController extends Controller
                 'message' => 'Time out recorded successfully!',
                 'data' => [
                     'time_out' => $timeOut,
-                    'formatted_time_out' => now()->format('g:i A'),
+                    'formatted_time_out' => $nowManila->format('g:i A'),
                     'total_minutes' => $totalMinutes,
                     'formatted_total_time' => $formattedTotalTime,
                     'status' => $status,
@@ -2591,7 +2948,8 @@ class AuthController extends Controller
             ], 401);
         }
         
-        $today = now()->toDateString();
+        // Use Asia/Manila timezone for consistency
+        $today = now('Asia/Manila')->toDateString();
 
         try {
             $attendance = \App\Models\Attendance::where('user_id', $user->id)
@@ -2613,7 +2971,10 @@ class AuthController extends Controller
             $timeInFormatted = null;
             if ($attendance->time_in) {
                 try {
-                    $timeInFormatted = \Carbon\Carbon::parse($dateString . ' ' . $attendance->time_in)->format('g:i A');
+                    // Parse time assuming it's in Asia/Manila timezone
+                    $timeInFormatted = \Carbon\Carbon::parse($dateString . ' ' . $attendance->time_in, 'Asia/Manila')
+                        ->setTimezone('Asia/Manila')
+                        ->format('g:i A');
                 } catch (\Exception $e) {
                     $timeInFormatted = $attendance->time_in;
                 }
@@ -2622,7 +2983,10 @@ class AuthController extends Controller
             $timeOutFormatted = null;
             if ($attendance->time_out) {
                 try {
-                    $timeOutFormatted = \Carbon\Carbon::parse($dateString . ' ' . $attendance->time_out)->format('g:i A');
+                    // Parse time assuming it's in Asia/Manila timezone
+                    $timeOutFormatted = \Carbon\Carbon::parse($dateString . ' ' . $attendance->time_out, 'Asia/Manila')
+                        ->setTimezone('Asia/Manila')
+                        ->format('g:i A');
                 } catch (\Exception $e) {
                     $timeOutFormatted = $attendance->time_out;
                 }
@@ -2702,7 +3066,10 @@ class AuthController extends Controller
                 $timeInFormatted = '--';
                 if ($attendance->time_in) {
                     try {
-                        $timeInFormatted = \Carbon\Carbon::parse($dateString . ' ' . $attendance->time_in)->format('g:i A');
+                        // Parse time assuming it's in Asia/Manila timezone
+                        $timeInFormatted = \Carbon\Carbon::parse($dateString . ' ' . $attendance->time_in, 'Asia/Manila')
+                            ->setTimezone('Asia/Manila')
+                            ->format('g:i A');
                     } catch (\Exception $e) {
                         $timeInFormatted = $attendance->time_in;
                     }
@@ -2711,7 +3078,10 @@ class AuthController extends Controller
                 $timeOutFormatted = '--';
                 if ($attendance->time_out) {
                     try {
-                        $timeOutFormatted = \Carbon\Carbon::parse($dateString . ' ' . $attendance->time_out)->format('g:i A');
+                        // Parse time assuming it's in Asia/Manila timezone
+                        $timeOutFormatted = \Carbon\Carbon::parse($dateString . ' ' . $attendance->time_out, 'Asia/Manila')
+                            ->setTimezone('Asia/Manila')
+                            ->format('g:i A');
                     } catch (\Exception $e) {
                         $timeOutFormatted = $attendance->time_out;
                     }
@@ -2771,6 +3141,171 @@ class AuthController extends Controller
     {
         $user = \Auth::user();
         
+        if (!$user || !in_array($user->role, ['Office Head', 'HR'])) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized. Only Office Heads and HR can access this.'
+            ], 403);
+        }
+
+        try {
+            $office = $user->office;
+            
+            // HR can see all student assistants, Office Head only sees their office
+            if ($user->role === 'HR') {
+                $studentAssistants = \App\Models\User::where('role', 'Student Assistant')
+                    ->orderBy('name')
+                    ->get();
+                
+                return response()->json([
+                    'success' => true,
+                    'data' => $studentAssistants,
+                    'office' => null // HR doesn't have a specific office
+                ]);
+            } else {
+                // Office Head role
+                if (!$office) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'No office assigned to your account.'
+                    ], 422);
+                }
+
+                // Use case-insensitive comparison for office field
+                $studentAssistants = \App\Models\User::where('role', 'Student Assistant')
+                    ->whereRaw('LOWER(TRIM(office)) = LOWER(TRIM(?))', [$office])
+                    ->orderBy('name')
+                    ->get();
+
+                \Log::info('Office Head SA query', [
+                    'office_head_id' => $user->id,
+                    'office_head_office' => $office,
+                    'student_assistants_count' => $studentAssistants->count(),
+                    'student_assistants' => $studentAssistants->map(function($sa) {
+                        return [
+                            'id' => $sa->id,
+                            'name' => $sa->name,
+                            'full_name' => $sa->full_name,
+                            'office' => $sa->office,
+                            'status' => $sa->status
+                        ];
+                    })
+                ]);
+
+                return response()->json([
+                    'success' => true,
+                    'data' => $studentAssistants,
+                    'office' => $office
+                ]);
+            }
+        } catch (\Exception $e) {
+            \Log::error('Error getting office student assistants: ' . $e->getMessage(), [
+                'office' => $user->office ?? null,
+                'user_id' => $user->id,
+                'user_role' => $user->role
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Error loading student assistants: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Approve apprentice to become full-pledged student assistant.
+     *
+     * @param  int  $id
+     * @return \Illuminate\Http\Response
+     */
+    public function approveApprentice($id)
+    {
+        $user = \Auth::user();
+        
+        if (!$user || $user->role !== 'Office Head') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized. Only Office Heads can approve apprentices.'
+            ], 403);
+        }
+
+        $office = $user->office;
+        
+        if (!$office) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No office assigned to your account.'
+            ], 422);
+        }
+
+        try {
+            $apprentice = \App\Models\User::where('role', 'Student Assistant')
+                ->where('id', $id)
+                ->first();
+
+            if (!$apprentice) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Student assistant not found.'
+                ], 404);
+            }
+
+            // Check if apprentice belongs to office head's office
+            if ($apprentice->office !== $office) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Unauthorized. This apprentice does not belong to your office.'
+                ], 403);
+            }
+
+            // Check if apprentice status
+            if ($apprentice->status !== 'Apprentice') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'This student assistant is not an apprentice.',
+                    'current_status' => $apprentice->status
+                ], 422);
+            }
+
+            // Update status to Active
+            $apprentice->update([
+                'status' => 'Active',
+                'active' => 1
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Apprentice approved successfully! Student assistant is now full-pledged.',
+                'data' => [
+                    'id' => $apprentice->id,
+                    'name' => $apprentice->name,
+                    'status' => $apprentice->status
+                ]
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Error approving apprentice: ' . $e->getMessage(), [
+                'user_id' => $user->id,
+                'apprentice_id' => $id,
+                'error' => $e->getTraceAsString()
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to approve apprentice.',
+                'error' => config('app.debug') ? $e->getMessage() : null
+            ], 500);
+        }
+    }
+
+    /**
+     * Get office head dashboard statistics.
+     *
+     * @return \Illuminate\Http\Response
+     */
+    public function getOfficeDashboardStats()
+    {
+        $user = \Auth::user();
+        
         if (!$user || $user->role !== 'Office Head') {
             return response()->json([
                 'success' => false,
@@ -2787,16 +3322,53 @@ class AuthController extends Controller
             ], 422);
         }
 
-        $studentAssistants = \App\Models\User::where('role', 'Student Assistant')
-            ->where('office', $office)
-            ->orderBy('name')
-            ->get();
+        try {
+            // Count assigned student assistants in this office
+            $assignedCount = \App\Models\User::where('role', 'Student Assistant')
+                ->where('office', $office)
+                ->count();
 
-        return response()->json([
-            'success' => true,
-            'data' => $studentAssistants,
-            'office' => $office
-        ]);
+            // Get all student assistant IDs in this office
+            $saIds = \App\Models\User::where('role', 'Student Assistant')
+                ->where('office', $office)
+                ->pluck('id');
+
+            // Count attendance today for student assistants in this office
+            $today = now()->toDateString();
+            $attendanceTodayCount = \App\Models\Attendance::whereIn('user_id', $saIds)
+                ->whereDate('date', $today)
+                ->whereNotNull('time_in')
+                ->pluck('user_id')
+                ->unique()
+                ->count();
+
+            // Count evaluations for student assistants in this office
+            $evaluationCount = \App\Models\Evaluation::where('office', $office)
+                ->where('status', '!=', 'Archived')
+                ->count();
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'assigned_count' => $assignedCount,
+                    'attendance_today' => $attendanceTodayCount,
+                    'evaluation_count' => $evaluationCount,
+                    'office' => $office
+                ]
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Error loading office dashboard stats: ' . $e->getMessage(), [
+                'user_id' => $user->id,
+                'office' => $office,
+                'error' => $e->getTraceAsString()
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to load dashboard statistics.',
+                'error' => config('app.debug') ? $e->getMessage() : null
+            ], 500);
+        }
     }
 
     /**

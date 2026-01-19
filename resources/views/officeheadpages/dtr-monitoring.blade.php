@@ -23,6 +23,46 @@
                     </div>
                 </div>
 
+                <!-- DTR Summary -->
+                <div class="col-span-12 intro-y">
+                    <div class="box p-5">
+                        <div class="flex items-center justify-between mb-4">
+                            <h2 class="text-lg font-medium flex items-center">
+                                <i data-lucide="bar-chart-2" class="w-5 h-5 mr-2"></i>
+                                DTR Summary
+                            </h2>
+                            <div class="flex gap-2 ml-auto">
+                                <button class="btn btn-outline-danger" onclick="exportReport('pdf')">
+                                    <i data-lucide="file-text" class="w-4 h-4 mr-2"></i>
+                                    Export PDF
+                                </button>
+                                <button class="btn btn-outline-primary" onclick="exportReport('docx')">
+                                    <i data-lucide="file-text" class="w-4 h-4 mr-2"></i>
+                                    Export DOCX
+                                </button>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                            <div class="p-2 bg-slate-50 dark:bg-darkmode-400 rounded-lg text-center justify-center items-center">
+                                <div class="text-slate-500 text-sm mb-1">Total Records</div>
+                                <div class="text-2xl font-semibold" id="summaryTotal">0</div>
+                            </div>
+                            <div class="p-2 bg-slate-50 dark:bg-darkmode-400 rounded-lg text-center justify-center items-center">
+                                <div class="text-slate-500 text-sm mb-1">Present</div>
+                                <div class="text-2xl font-semibold text-success" id="summaryPresent">0</div>
+                            </div>
+                            <div class="p-2 bg-slate-50 dark:bg-darkmode-400 rounded-lg text-center justify-center items-center">
+                                <div class="text-slate-500 text-sm mb-1">Late</div>
+                                <div class="text-2xl font-semibold text-warning" id="summaryLate">0</div>
+                            </div>
+                            <div class="p-2 bg-slate-50 dark:bg-darkmode-400 rounded-lg text-center justify-center items-center">
+                                <div class="text-slate-500 text-sm mb-1">Pending Review</div>
+                                <div class="text-2xl font-semibold text-danger" id="summaryPending">0</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Filters -->
                 <div class="col-span-12 intro-y">
                     <div class="box p-5">
@@ -173,6 +213,7 @@
                 setupEventListeners();
                 updatePendingCount();
                 renderTable();
+                updateSummary();
                 reloadLucideIcons();
             }
 
@@ -271,6 +312,7 @@
                 });
 
                 renderTable();
+                updateSummary();
             }
 
             // Render the DTR table
@@ -351,6 +393,19 @@
             function updatePendingCount() {
                 const pendingCount = dtrData.filter(dtr => dtr.pending).length;
                 pendingCountNumber.textContent = pendingCount;
+            }
+
+            // Update summary statistics
+            function updateSummary() {
+                const total = filteredData.length;
+                const present = filteredData.filter(dtr => dtr.status === 'Present' || dtr.status === 'Completed').length;
+                const late = filteredData.filter(dtr => dtr.status === 'Late').length;
+                const pending = filteredData.filter(dtr => dtr.pending).length;
+
+                document.getElementById('summaryTotal').textContent = total;
+                document.getElementById('summaryPresent').textContent = present;
+                document.getElementById('summaryLate').textContent = late;
+                document.getElementById('summaryPending').textContent = pending;
             }
 
             // Review DTR function (global scope for onclick)
@@ -440,6 +495,7 @@
                         // Update UI
                         updatePendingCount();
                         renderTable();
+                        updateSummary();
                         closeDTRPanel();
 
                         // Show success message
@@ -452,6 +508,259 @@
                     showMessage('An error occurred while reviewing DTR', 'error');
                 }
             };
+
+            // Export report function (global scope for onclick)
+            window.exportReport = async function(format) {
+                if (filteredData.length === 0) {
+                    showMessage('No data to export', 'error');
+                    return;
+                }
+
+                try {
+                    if (format === 'pdf') {
+                        await exportToPDF();
+                    } else if (format === 'docx') {
+                        await exportToDOCX();
+                    }
+                } catch (error) {
+                    console.error('Error exporting report:', error);
+                    showMessage('An error occurred while exporting the report', 'error');
+                }
+            };
+
+            // Export to PDF using jsPDF
+            async function exportToPDF() {
+                // Load jsPDF from CDN if not already loaded
+                if (typeof window.jspdf === 'undefined') {
+                    const script = document.createElement('script');
+                    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+                    script.onload = () => generatePDF();
+                    document.head.appendChild(script);
+                } else {
+                    generatePDF();
+                }
+            }
+
+            function generatePDF() {
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF();
+                
+                // Add title
+                doc.setFontSize(18);
+                doc.text('DTR Summary Report', 14, 20);
+                
+                // Add date
+                doc.setFontSize(10);
+                doc.text(`Generated: ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`, 14, 30);
+                doc.text(`Office: ${currentOffice || 'All Offices'}`, 14, 36);
+                
+                // Add summary statistics
+                doc.setFontSize(12);
+                let yPos = 50;
+                doc.setFont(undefined, 'bold');
+                doc.text('Summary Statistics', 14, yPos);
+                doc.setFont(undefined, 'normal');
+                
+                yPos += 8;
+                doc.text(`Total Records: ${filteredData.length}`, 20, yPos);
+                yPos += 6;
+                doc.text(`Present: ${filteredData.filter(d => d.status === 'Present' || d.status === 'Completed').length}`, 20, yPos);
+                yPos += 6;
+                doc.text(`Late: ${filteredData.filter(d => d.status === 'Late').length}`, 20, yPos);
+                yPos += 6;
+                doc.text(`Pending Review: ${filteredData.filter(d => d.pending).length}`, 20, yPos);
+                
+                // Add table headers
+                yPos += 15;
+                doc.setFont(undefined, 'bold');
+                doc.setFontSize(10);
+                doc.text('DTR Records', 14, yPos);
+                
+                // Table data
+                yPos += 8;
+                doc.setFontSize(8);
+                doc.setFont(undefined, 'bold');
+                doc.text('Name', 14, yPos);
+                doc.text('Date', 60, yPos);
+                doc.text('Time In', 90, yPos);
+                doc.text('Time Out', 120, yPos);
+                doc.text('Status', 155, yPos);
+                
+                // Add table rows
+                filteredData.slice(0, 20).forEach((dtr, index) => {
+                    yPos += 6;
+                    if (yPos > 270) {
+                        doc.addPage();
+                        yPos = 20;
+                    }
+                    doc.setFont(undefined, 'normal');
+                    doc.text(dtr.name.substring(0, 25), 14, yPos);
+                    doc.text(formatDate(dtr.date), 60, yPos);
+                    doc.text(dtr.timeIn || '—', 90, yPos);
+                    doc.text(dtr.timeOut || '—', 120, yPos);
+                    doc.text(dtr.status, 155, yPos);
+                });
+                
+                if (filteredData.length > 20) {
+                    yPos += 8;
+                    doc.setFont(undefined, 'italic');
+                    doc.text(`... and ${filteredData.length - 20} more records`, 14, yPos);
+                }
+                
+                // Save the PDF
+                const fileName = `DTR_Report_${new Date().toISOString().split('T')[0]}.pdf`;
+                doc.save(fileName);
+                showMessage('PDF exported successfully!', 'success');
+            }
+
+            // Export to DOCX using html-docx-js
+            async function exportToDOCX() {
+                try {
+                    // Load html-docx-js from CDN if not already loaded
+                    if (typeof window.HTMLtoDOCX === 'undefined') {
+                        const script = document.createElement('script');
+                        script.src = 'https://cdn.jsdelivr.net/npm/html-docx-js/dist/html-docx.js';
+                        script.onload = () => generateDOCX();
+                        document.head.appendChild(script);
+                    } else {
+                        generateDOCX();
+                    }
+                } catch (error) {
+                    console.error('Error loading DOCX library:', error);
+                    // Fallback to server-side export
+                    exportDOCXServerSide();
+                }
+            }
+
+            function generateDOCX() {
+                try {
+                    // Create HTML content for the report
+                    let htmlContent = `
+                        <html>
+                        <head>
+                            <meta charset="UTF-8">
+                            <style>
+                                body { font-family: Arial, sans-serif; margin: 20px; }
+                                h1 { text-align: center; color: #333; }
+                                h2 { color: #555; border-bottom: 2px solid #333; padding-bottom: 5px; }
+                                .summary { margin: 20px 0; }
+                                .summary-item { margin: 10px 0; }
+                                table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+                                th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+                                th { background-color: #f2f2f2; font-weight: bold; }
+                                tr:nth-child(even) { background-color: #f9f9f9; }
+                            </style>
+                        </head>
+                        <body>
+                            <h1>DTR Summary Report</h1>
+                            <p><strong>Generated:</strong> ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                            <p><strong>Office:</strong> ${currentOffice || 'All Offices'}</p>
+                            
+                            <h2>Summary Statistics</h2>
+                            <div class="summary">
+                                <div class="summary-item"><strong>Total Records:</strong> ${filteredData.length}</div>
+                                <div class="summary-item"><strong>Present:</strong> ${filteredData.filter(d => d.status === 'Present' || d.status === 'Completed').length}</div>
+                                <div class="summary-item"><strong>Late:</strong> ${filteredData.filter(d => d.status === 'Late').length}</div>
+                                <div class="summary-item"><strong>Pending Review:</strong> ${filteredData.filter(d => d.pending).length}</div>
+                            </div>
+                            
+                            <h2>DTR Records</h2>
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>#</th>
+                                        <th>Name</th>
+                                        <th>Student ID</th>
+                                        <th>Date</th>
+                                        <th>Time In</th>
+                                        <th>Time Out</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${filteredData.slice(0, 100).map((dtr, index) => `
+                                        <tr>
+                                            <td>${index + 1}</td>
+                                            <td>${dtr.name}</td>
+                                            <td>${dtr.studentId || 'N/A'}</td>
+                                            <td>${formatDate(dtr.date)}</td>
+                                            <td>${dtr.timeIn || '—'}</td>
+                                            <td>${dtr.timeOut || '—'}</td>
+                                            <td>${dtr.status}</td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                            ${filteredData.length > 100 ? `<p><em>... and ${filteredData.length - 100} more records</em></p>` : ''}
+                        </body>
+                        </html>
+                    `;
+
+                    // Use html-docx-js to convert HTML to DOCX
+                    if (typeof window.HTMLtoDOCX !== 'undefined') {
+                        const converted = window.HTMLtoDOCX.asBlob(htmlContent);
+                        const url = window.URL.createObjectURL(converted);
+                        const link = document.createElement('a');
+                        link.href = url;
+                        link.download = `DTR_Report_${new Date().toISOString().split('T')[0]}.docx`;
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                        window.URL.revokeObjectURL(url);
+                        showMessage('DOCX exported successfully!', 'success');
+                    } else {
+                        // Fallback: Use server-side export
+                        exportDOCXServerSide();
+                    }
+                } catch (error) {
+                    console.error('Error generating DOCX:', error);
+                    exportDOCXServerSide();
+                }
+            }
+
+            // Fallback server-side DOCX export
+            async function exportDOCXServerSide() {
+                try {
+                    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+                    
+                    const response = await fetch('/api/dtr-export-docx', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': csrfToken,
+                            'Accept': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            data: filteredData.slice(0, 100),
+                            office: currentOffice,
+                            summary: {
+                                total: filteredData.length,
+                                present: filteredData.filter(d => d.status === 'Present' || d.status === 'Completed').length,
+                                late: filteredData.filter(d => d.status === 'Late').length,
+                                pending: filteredData.filter(d => d.pending).length
+                            }
+                        })
+                    });
+
+                    if (response.ok) {
+                        const blob = await response.blob();
+                        const url = window.URL.createObjectURL(blob);
+                        const link = document.createElement('a');
+                        link.href = url;
+                        link.download = `DTR_Report_${new Date().toISOString().split('T')[0]}.docx`;
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                        window.URL.revokeObjectURL(url);
+                        showMessage('DOCX exported successfully!', 'success');
+                    } else {
+                        showMessage('Failed to export DOCX. Please try again.', 'error');
+                    }
+                } catch (error) {
+                    console.error('Error with server-side DOCX export:', error);
+                    showMessage('Failed to export DOCX. Please try the PDF export instead.', 'error');
+                }
+            }
 
             // Show message function
             function showMessage(message, type) {

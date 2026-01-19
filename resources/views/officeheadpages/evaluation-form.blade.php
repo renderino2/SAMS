@@ -36,16 +36,39 @@
                                 </h2>
                             </div>
                             <div class="col-span-12 md:col-span-4">
-                                <label for="studentName" class="form-label">Student Name:</label>
-                                <input type="text" id="studentName" name="studentName" class="form-control" required />
+                                <label for="studentName" class="form-label">Student Name: <span class="text-danger">*</span></label>
+                                <select id="studentName" name="studentName" class="form-control" required>
+                                    <option value="">Select Student Assistant...</option>
+                                </select>
                             </div>
                             <div class="col-span-12 md:col-span-4">
-                                <label for="natureOfWork" class="form-label">Nature of Work:</label>
-                                <input type="text" id="natureOfWork" name="natureOfWork" class="form-control" required />
+                                <label for="natureOfWork" class="form-label">Nature of Work: <span class="text-danger">*</span></label>
+                                <select id="natureOfWork" name="natureOfWork" class="form-control" required>
+                                    <option value="">Select Nature of Work...</option>
+                                    <option value="Administrative Support">Administrative Support</option>
+                                    <option value="Document Processing">Document Processing</option>
+                                    <option value="Data Entry">Data Entry</option>
+                                    <option value="Reception/Information Desk">Reception/Information Desk</option>
+                                    <option value="Library Services">Library Services</option>
+                                    <option value="Technical Support">Technical Support</option>
+                                    <option value="Event Coordination">Event Coordination</option>
+                                    <option value="Research Assistance">Research Assistance</option>
+                                    <option value="Filing and Organization">Filing and Organization</option>
+                                    <option value="Other">Other</option>
+                                </select>
                             </div>
                             <div class="col-span-12 md:col-span-4">
-                                <label for="office" class="form-label">Office:</label>
-                                <input type="text" id="office" name="office" class="form-control" required />
+                                <label for="officeSelect" class="form-label">Office: <span class="text-danger">*</span></label>
+                                <select id="officeSelect" name="office" class="form-control" required style="display: none;">
+                                    <option value="">Select Office...</option>
+                                    <option value="Registrar">Registrar</option>
+                                    <option value="Library">Library</option>
+                                    <option value="Guidance">Guidance</option>
+                                    <option value="Clinic">Clinic</option>
+                                    <option value="IT">IT</option>
+                                </select>
+                                <input type="text" id="officeReadonly" name="office" class="form-control" required readonly 
+                                       style="background-color: #f3f4f6; cursor: not-allowed;" />
                             </div>
 
                             <!-- Rating Criteria -->
@@ -267,9 +290,122 @@
             let evaluationsList = [];
             let filteredEvaluationsList = [];
             let currentEditId = null;
+            let studentAssistantsList = [];
+            let currentOffice = '';
 
             // Set current date
             document.getElementById('date').value = new Date().toISOString().split('T')[0];
+
+            // Load student assistants for dropdown
+            async function loadStudentAssistants() {
+                try {
+                    const response = await fetch('/api/office-sas', {
+                        headers: {
+                            'Accept': 'application/json'
+                        }
+                    });
+                    
+                    console.log('Loading student assistants, response status:', response.status);
+                    
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        console.error('API error response:', errorText);
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    
+                    const contentType = response.headers.get('content-type');
+                    if (!contentType || !contentType.includes('application/json')) {
+                        const text = await response.text();
+                        console.error('Non-JSON response when loading student assistants:', text.substring(0, 200));
+                        throw new Error('Non-JSON response received');
+                    }
+                    
+                    const result = await response.json();
+                    console.log('Student assistants API result:', result);
+                    
+                    if (result.success && result.data && Array.isArray(result.data)) {
+                        studentAssistantsList = result.data;
+                        currentOffice = result.office || '';
+                        
+                        // Populate student name dropdown
+                        const studentNameSelect = document.getElementById('studentName');
+                        studentNameSelect.innerHTML = '<option value="">Select Student Assistant...</option>';
+                        
+                        // Filter student assistants - include all if status is null/undefined, or Active/Apprentice
+                        const activeSAs = result.data.filter(sa => {
+                            // Include all student assistants, or filter by status if status field exists
+                            const status = sa.status;
+                            return !status || status === 'Active' || status === 'Apprentice' || status === 'Pending Assignment';
+                        });
+                        
+                        console.log('Filtered student assistants:', activeSAs.length, 'out of', result.data.length);
+                        
+                        if (activeSAs.length === 0) {
+                            // Show all if no active ones found (fallback)
+                            result.data.forEach(sa => {
+                                const option = document.createElement('option');
+                                option.value = sa.id;
+                                const fullName = sa.full_name || sa.name || 'Unknown';
+                                const studentId = sa.student_id_number || '';
+                                option.textContent = studentId ? `${fullName} (${studentId})` : fullName;
+                                option.dataset.studentName = fullName;
+                                option.dataset.studentId = studentId;
+                                studentNameSelect.appendChild(option);
+                            });
+                        } else {
+                            activeSAs.forEach(sa => {
+                                const option = document.createElement('option');
+                                option.value = sa.id;
+                                const fullName = sa.full_name || sa.name || 'Unknown';
+                                const studentId = sa.student_id_number || '';
+                                option.textContent = studentId ? `${fullName} (${studentId})` : fullName;
+                                option.dataset.studentName = fullName;
+                                option.dataset.studentId = studentId;
+                                studentNameSelect.appendChild(option);
+                            });
+                        }
+                        
+                        // Set office field based on user role
+                        const officeSelect = document.getElementById('officeSelect');
+                        const officeReadonly = document.getElementById('officeReadonly');
+                        
+                        if (currentOffice) {
+                            // Office Head - show readonly field
+                            if (officeReadonly) {
+                                officeReadonly.value = currentOffice;
+                                officeReadonly.style.display = 'block';
+                                if (officeSelect) officeSelect.style.display = 'none';
+                            }
+                        } else {
+                            // HR - show dropdown to select office
+                            if (officeSelect) {
+                                officeSelect.style.display = 'block';
+                                if (officeReadonly) officeReadonly.style.display = 'none';
+                            }
+                        }
+                        
+                        console.log('Student assistants loaded successfully:', activeSAs.length || result.data.length);
+                    } else {
+                        console.error('Failed to load student assistants - invalid response:', result);
+                        const studentNameSelect = document.getElementById('studentName');
+                        studentNameSelect.innerHTML = '<option value="">No student assistants available. ' + (result.message || 'Please check your office assignment.') + '</option>';
+                    }
+                } catch (error) {
+                    console.error('Error loading student assistants:', error);
+                    const studentNameSelect = document.getElementById('studentName');
+                    studentNameSelect.innerHTML = '<option value="">Error loading student assistants. Please refresh the page.</option>';
+                }
+            }
+
+            // Handle student name selection change
+            document.getElementById('studentName').addEventListener('change', function() {
+                const selectedOption = this.options[this.selectedIndex];
+                if (selectedOption && selectedOption.value) {
+                    // Optionally auto-fill or validate based on selected student
+                    const studentId = selectedOption.dataset.studentId;
+                    // You can add additional logic here if needed
+                }
+            });
 
             // Handle form submission
             evaluationForm.addEventListener('submit', async (e) => {
@@ -279,18 +415,71 @@
                 const isUpdateMode = submitBtn.dataset.mode === 'update' && currentEditId;
                 
                 const formData = new FormData(evaluationForm);
-                const data = Object.fromEntries(formData.entries());
-                
-                // Validate all rating fields
-                const ratings = [];
-                for (let i = 1; i <= 10; i++) {
-                    const rating = parseInt(data[`rate${i}`]);
-                    if (isNaN(rating) || rating < 1 || rating > 10) {
-                        showMessage(`Please enter a valid rating (1-10) for criterion ${i}`, 'error');
-                        return;
-                    }
-                    ratings.push(rating);
-                }
+                        // Get selected student name from dropdown
+                        const studentSelect = document.getElementById('studentName');
+                        const selectedOption = studentSelect.options[studentSelect.selectedIndex];
+                        let studentName = '';
+                        
+                        if (selectedOption && selectedOption.value) {
+                            // Use dataset.studentName if available, otherwise extract from textContent
+                            if (selectedOption.dataset.studentName) {
+                                studentName = selectedOption.dataset.studentName;
+                            } else {
+                                // Extract name from "Name (ID)" format
+                                const text = selectedOption.textContent.trim();
+                                const match = text.match(/^(.+?)\s*\(/);
+                                studentName = match ? match[1].trim() : text;
+                            }
+                        }
+                        
+                        // Validate required fields
+                        if (!studentName) {
+                            showMessage('Please select a student assistant', 'error');
+                            return;
+                        }
+                        
+                        const natureOfWork = document.getElementById('natureOfWork').value;
+                        if (!natureOfWork) {
+                            showMessage('Please select nature of work', 'error');
+                            return;
+                        }
+                        
+                        // Get office value - check both readonly and select fields
+                        const officeReadonly = document.getElementById('officeReadonly');
+                        const officeSelect = document.getElementById('officeSelect');
+                        const officeValue = (officeReadonly && officeReadonly.style.display !== 'none') 
+                            ? officeReadonly.value 
+                            : (officeSelect ? officeSelect.value : '');
+                        
+                        if (!officeValue) {
+                            showMessage('Please select an office', 'error');
+                            return;
+                        }
+                        
+                        const formDataObj = {
+                            studentName: studentName,
+                            natureOfWork: natureOfWork,
+                            office: officeValue,
+                            date: document.getElementById('date').value,
+                            ratedBy: document.getElementById('ratedBy').value,
+                            head: document.getElementById('head').value,
+                            comments: document.getElementById('comments').value || ''
+                        };
+                        
+                        console.log('Submitting evaluation with data:', formDataObj);
+                        
+                        // Get all ratings
+                        const ratings = [];
+                        for (let i = 1; i <= 10; i++) {
+                            const rateInput = document.getElementById(`rate${i}`);
+                            const rating = parseInt(rateInput.value);
+                            if (isNaN(rating) || rating < 1 || rating > 10) {
+                                showMessage(`Please enter a valid rating (1-10) for criterion ${i}`, 'error');
+                                return;
+                            }
+                            ratings.push(rating);
+                            formDataObj[`rate${i}`] = rating;
+                        }
 
                 // Calculate scores
                 const totalScore = ratings.reduce((sum, rating) => sum + rating, 0);
@@ -313,7 +502,7 @@
                                 'Accept': 'application/json'
                             },
                             body: JSON.stringify({
-                                ...data,
+                                ...formDataObj,
                                 totalScore: totalScore,
                                 averageScore: parseFloat(averageScore),
                                 overallRating: overallRating
@@ -329,6 +518,16 @@
                             document.getElementById('date').value = new Date().toISOString().split('T')[0];
                             document.getElementById('ratedBy').value = '{{ Auth::user()->full_name ?? Auth::user()->name }}';
                             document.getElementById('head').value = '{{ Auth::user()->full_name ?? Auth::user()->name }}';
+                            document.getElementById('studentName').value = '';
+                            document.getElementById('natureOfWork').value = '';
+                            // Reset office field
+                            const officeReadonly = document.getElementById('officeReadonly');
+                            const officeSelect = document.getElementById('officeSelect');
+                            if (currentOffice && officeReadonly) {
+                                officeReadonly.value = currentOffice;
+                            } else if (officeSelect) {
+                                officeSelect.value = '';
+                            }
                             submitBtn.innerHTML = '<i data-lucide="send" class="w-4 h-4 mr-2"></i> Submit Evaluation';
                             submitBtn.dataset.mode = 'create';
                             currentEditId = null;
@@ -351,7 +550,7 @@
                                 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
                             },
                             body: JSON.stringify({
-                                ...data,
+                                ...formDataObj,
                                 ratings: ratings,
                                 totalScore: totalScore,
                                 averageScore: parseFloat(averageScore),
@@ -368,6 +567,16 @@
                             document.getElementById('date').value = new Date().toISOString().split('T')[0];
                             document.getElementById('ratedBy').value = '{{ Auth::user()->full_name ?? Auth::user()->name }}';
                             document.getElementById('head').value = '{{ Auth::user()->full_name ?? Auth::user()->name }}';
+                            document.getElementById('studentName').value = '';
+                            document.getElementById('natureOfWork').value = '';
+                            // Reset office field
+                            const officeReadonly = document.getElementById('officeReadonly');
+                            const officeSelect = document.getElementById('officeSelect');
+                            if (currentOffice && officeReadonly) {
+                                officeReadonly.value = currentOffice;
+                            } else if (officeSelect) {
+                                officeSelect.value = '';
+                            }
                             // Reload evaluations list
                             if (typeof loadEvaluations === 'function') {
                                 await loadEvaluations();
@@ -600,10 +809,34 @@
                         const evaluation = result.data;
                         currentEditId = id;
                         
+                        // Find student assistant by name to get ID
+                        const sa = studentAssistantsList.find(s => 
+                            (s.full_name || s.name) === evaluation.student_name
+                        );
+                        
                         // Populate form
-                        document.getElementById('studentName').value = evaluation.student_name;
-                        document.getElementById('natureOfWork').value = evaluation.nature_of_work;
-                        document.getElementById('office').value = evaluation.office;
+                        document.getElementById('studentName').value = sa ? sa.id : '';
+                        if (!sa && evaluation.student_name) {
+                            // If student not found in current list, add as option
+                            const studentSelect = document.getElementById('studentName');
+                            const option = document.createElement('option');
+                            option.value = evaluation.student_name;
+                            option.textContent = evaluation.student_name;
+                            option.selected = true;
+                            studentSelect.appendChild(option);
+                        }
+                        document.getElementById('natureOfWork').value = evaluation.nature_of_work || '';
+                        // Set office field
+                        const officeReadonly = document.getElementById('officeReadonly');
+                        const officeSelect = document.getElementById('officeSelect');
+                        const officeValue = evaluation.office || currentOffice;
+                        if (officeValue) {
+                            if (currentOffice && officeReadonly) {
+                                officeReadonly.value = officeValue;
+                            } else if (officeSelect) {
+                                officeSelect.value = officeValue;
+                            }
+                        }
                         document.getElementById('rate1').value = evaluation.rate1;
                         document.getElementById('rate2').value = evaluation.rate2;
                         document.getElementById('rate3').value = evaluation.rate3;
@@ -672,8 +905,16 @@
             searchEvaluations.addEventListener('input', filterEvaluations);
             refreshEvaluations.addEventListener('click', loadEvaluations);
 
-            // Initialize evaluations on page load
-            loadEvaluations();
+
+            // Initialize on page load
+            async function init() {
+                await loadStudentAssistants();
+                await loadEvaluations();
+                reloadLucideIcons();
+            }
+
+            // Initialize evaluations and student assistants on page load
+            init();
 
             // Reload Lucide icons
             function reloadLucideIcons() {

@@ -127,6 +127,7 @@
                                 <div class="col-span-12 md:col-span-6">
                                     <label for="status" class="form-label">Status:</label>
                                     <select id="status" name="status" class="form-control" required>
+                                        <option value="Apprentice">Apprentice</option>
                                         <option value="Active">Active</option>
                                         <option value="Inactive">Inactive</option>
                                         <option value="Pending Assignment">Pending Assignment</option>
@@ -213,66 +214,9 @@
 @section('script')
     <script type="module">
         (function () {
-            // Sample student assistant data - in real implementation, this would come from the server
-            let saData = [
-                {
-                    id: 1,
-                    name: "John Doe",
-                    studentId: "23-12345",
-                    email: "john.doe@student.cjc.edu.ph",
-                    contact: "09123456789",
-                    office: "Registrar",
-                    status: "Active",
-                    notes: "Excellent performance in document processing. Reliable and punctual.",
-                    dateAdded: "2024-01-15"
-                },
-                {
-                    id: 2,
-                    name: "Jane Smith",
-                    studentId: "23-12346",
-                    email: "jane.smith@student.cjc.edu.ph",
-                    contact: "09123456790",
-                    office: "Library",
-                    status: "Active",
-                    notes: "Great with library management systems. Helps students with research.",
-                    dateAdded: "2024-01-16"
-                },
-                {
-                    id: 3,
-                    name: "Mike Johnson",
-                    studentId: "23-12347",
-                    email: "mike.johnson@student.cjc.edu.ph",
-                    contact: "09123456791",
-                    office: "Guidance",
-                    status: "Inactive",
-                    notes: "On leave for academic reasons. Expected to return next semester.",
-                    dateAdded: "2024-01-17"
-                },
-                {
-                    id: 4,
-                    name: "Sarah Wilson",
-                    studentId: "23-12348",
-                    email: "sarah.wilson@student.cjc.edu.ph",
-                    contact: "09123456792",
-                    office: "Clinic",
-                    status: "Pending Assignment",
-                    notes: "New student assistant. Awaiting office assignment.",
-                    dateAdded: "2024-01-18"
-                },
-                {
-                    id: 5,
-                    name: "David Brown",
-                    studentId: "23-12349",
-                    email: "david.brown@student.cjc.edu.ph",
-                    contact: "09123456793",
-                    office: "IT",
-                    status: "Active",
-                    notes: "Technical support specialist. Excellent with computer systems.",
-                    dateAdded: "2024-01-19"
-                }
-            ];
-
-            let filteredData = [...saData];
+            // Student assistant data loaded from API
+            let saData = [];
+            let filteredData = [];
             let currentSAId = null;
 
             // DOM elements
@@ -287,10 +231,52 @@
             const totalCount = document.getElementById('totalCount');
             const messageDiv = document.getElementById('message');
 
+            // Load student assistants from API
+            async function loadStudentAssistants() {
+                try {
+                    const response = await fetch('/api/sa-accounts', {
+                        headers: {
+                            'Accept': 'application/json'
+                        }
+                    });
+                    
+                    const contentType = response.headers.get('content-type');
+                    if (!contentType || !contentType.includes('application/json')) {
+                        const text = await response.text();
+                        console.error('Non-JSON response:', text.substring(0, 200));
+                        saTableBody.innerHTML = '<tr><td colspan="7" class="text-center text-slate-500">Error loading data</td></tr>';
+                        return;
+                    }
+                    
+                    const result = await response.json();
+                    
+                    if (result.success && result.data) {
+                        saData = result.data.map(sa => ({
+                            id: sa.id,
+                            name: sa.full_name || sa.name,
+                            studentId: sa.student_id_number,
+                            email: sa.email,
+                            contact: sa.contact || '—',
+                            office: sa.office || '—',
+                            status: sa.status || 'Pending Assignment',
+                            notes: sa.service_notes || '',
+                            dateAdded: sa.created_at ? new Date(sa.created_at).toISOString().split('T')[0] : ''
+                        }));
+                        filteredData = [...saData];
+                        updateTotalCount();
+                        renderTable();
+                    } else {
+                        saTableBody.innerHTML = '<tr><td colspan="7" class="text-center text-slate-500">' + (result.message || 'No student assistants found') + '</td></tr>';
+                    }
+                } catch (error) {
+                    console.error('Error loading student assistants:', error);
+                    saTableBody.innerHTML = '<tr><td colspan="7" class="text-center text-slate-500">Error loading student assistants</td></tr>';
+                }
+            }
+
             // Initialize page
-            function init() {
-                updateTotalCount();
-                renderTable();
+            async function init() {
+                await loadStudentAssistants();
                 setupEventListeners();
             }
 
@@ -321,10 +307,22 @@
                 renderTable();
             }
 
+            // Reload Lucide icons
+            function reloadLucideIcons() {
+                if (window.lucide && window.lucide.createIcons) {
+                    window.lucide.createIcons({
+                        icons: window.lucide.icons,
+                        "stroke-width": 1.5,
+                        nameAttr: "data-lucide",
+                    });
+                }
+            }
+
             // Render the student assistant table
             function renderTable() {
                 if (filteredData.length === 0) {
                     saTableBody.innerHTML = '<tr><td colspan="7" class="text-center text-slate-500">No student assistants found</td></tr>';
+                    reloadLucideIcons();
                     return;
                 }
 
@@ -338,12 +336,13 @@
                         <td class="max-w-xs truncate" title="${sa.notes}">${sa.notes || 'No notes'}</td>
                         <td>
                             <button class="btn btn-primary btn-sm text-white" onclick="viewSA(${sa.id})">
-                                
+                                <i data-lucide="eye" class="w-4 h-4 mr-1"></i>
                                 View
                             </button>
                         </td>
                     </tr>
                 `).join('');
+                reloadLucideIcons();
             }
 
             // Get status badge class
@@ -352,6 +351,7 @@
                     case 'Active': return 'bg-success text-white';
                     case 'Inactive': return 'bg-danger text-white';
                     case 'Pending Assignment': return 'bg-warning text-white';
+                    case 'Apprentice': return 'bg-primary text-white';
                     default: return 'bg-secondary text-white';
                 }
             }
@@ -389,36 +389,39 @@
             async function handleFormSubmit(e) {
                 e.preventDefault();
                 
-                const formData = new FormData(saForm);
-                const data = Object.fromEntries(formData.entries());
+                const formData = {
+                    fullName: document.getElementById('fullName').value,
+                    studentId: document.getElementById('studentId').value,
+                    email: document.getElementById('email').value,
+                    contact: document.getElementById('contact').value,
+                    office: document.getElementById('office').value,
+                    status: document.getElementById('status').value,
+                    notes: document.getElementById('notes').value
+                };
                 
                 try {
+                    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+                    
                     const response = await fetch('/student-assistants/add', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                            'X-CSRF-TOKEN': csrfToken,
+                            'Accept': 'application/json'
                         },
-                        body: JSON.stringify(data)
+                        body: JSON.stringify(formData)
                     });
                     
                     const result = await response.json();
                     
-                    if (response.ok) {
-                        // Add to local data
-                        const newSA = {
-                            id: saData.length + 1,
-                            ...data,
-                            dateAdded: new Date().toISOString().split('T')[0]
-                        };
-                        saData.push(newSA);
-                        
-                        updateTotalCount();
-                        filterData();
+                    if (response.ok && result.success) {
+                        // Reload data from server
+                        await loadStudentAssistants();
                         hideForm();
                         showMessage(result.message || 'Student assistant added successfully!', 'success');
                     } else {
-                        showMessage(result.message || 'Failed to add student assistant', 'error');
+                        const errorMsg = result.message || result.error || 'Failed to add student assistant';
+                        showMessage(errorMsg, 'error');
                     }
                 } catch (error) {
                     console.error('Error adding student assistant:', error);
@@ -460,17 +463,33 @@
             };
 
             // Delete SA function (global scope for onclick)
-            window.deleteSA = function() {
+            window.deleteSA = async function() {
                 if (!currentSAId) return;
                 
                 if (confirm('Are you sure you want to delete this student assistant?')) {
-                    const saIndex = saData.findIndex(s => s.id === currentSAId);
-                    if (saIndex !== -1) {
-                        saData.splice(saIndex, 1);
-                        updateTotalCount();
-                        filterData();
-                        closeSAPanel();
-                        showMessage('Student assistant deleted successfully!', 'success');
+                    try {
+                        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+                        
+                        const response = await fetch(`/api/sa-accounts/${currentSAId}`, {
+                            method: 'DELETE',
+                            headers: {
+                                'X-CSRF-TOKEN': csrfToken,
+                                'Accept': 'application/json'
+                            }
+                        });
+                        
+                        const result = await response.json();
+                        
+                        if (response.ok && result.success) {
+                            await loadStudentAssistants();
+                            closeSAPanel();
+                            showMessage(result.message || 'Student assistant deleted successfully!', 'success');
+                        } else {
+                            showMessage(result.message || 'Failed to delete student assistant', 'error');
+                        }
+                    } catch (error) {
+                        console.error('Error deleting student assistant:', error);
+                        showMessage('An error occurred while deleting student assistant', 'error');
                     }
                 }
             };
@@ -491,7 +510,10 @@
             }
 
             // Initialize when DOM is loaded
-            document.addEventListener('DOMContentLoaded', init);
+            document.addEventListener('DOMContentLoaded', function() {
+                init();
+                reloadLucideIcons();
+            });
         })();
     </script>
 @endsection

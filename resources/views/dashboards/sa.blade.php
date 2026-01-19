@@ -52,7 +52,11 @@
                     <div class="report-box zoom-in">
                         <div class="box p-5">
                             <div class="flex items-center">
-                                <i data-lucide="timer" class="report-box__icon text-success"></i>
+                                <i data-lucide="timer" class="report-box__icon text-success mr-3"></i>
+                                <div>
+                                    <div class="text-base font-medium">Total Time</div>
+                                    <div class="text-xs text-slate-500">View and manage in Attendance page</div>
+                                </div>
                             </div>
                             <div class="text-3xl font-medium leading-8 mt-6" id="totalHours">—</div>
                             <div class="text-base text-slate-500 mt-1">Total Hours</div>
@@ -159,6 +163,16 @@
         const contractStatusEl = document.getElementById('contractStatus');
         const lastRequestEl = document.getElementById('lastRequest');
         const lastRequestTimeEl = document.getElementById('lastRequestTime');
+        
+        // Verify elements exist
+        if (!timeInEl || !timeOutEl || !totalHoursEl) {
+            console.error('Dashboard elements not found:', {
+                timeInEl: !!timeInEl,
+                timeOutEl: !!timeOutEl,
+                totalHoursEl: !!totalHoursEl
+            });
+            return;
+        }
 
         // Set current date
         const today = new Date();
@@ -230,47 +244,61 @@
                 }
                 
                 const result = await response.json();
+                console.log('Attendance API response:', result);
                 
                 if (result.success) {
                     if (result.data) {
                         const data = result.data;
                         currentAttendanceData = data;
+                        console.log('Updating dashboard with data:', data);
                         
-                        // Update time cards
-                        timeInEl.textContent = data.time_in || '—';
-                        timeOutEl.textContent = data.time_out || '—';
+                        // Update time cards - handle null, empty string, or "--" values
+                        const timeInValue = (data.time_in && data.time_in !== '--' && data.time_in !== '') ? data.time_in : '—';
+                        const timeOutValue = (data.time_out && data.time_out !== '--' && data.time_out !== '') ? data.time_out : '—';
+                        
+                        timeInEl.textContent = timeInValue;
+                        timeOutEl.textContent = timeOutValue;
                         
                         // Calculate and display total time
-                        if (data.time_in && data.time_out) {
+                        const hasTimeIn = data.time_in && data.time_in !== '--' && data.time_in !== '';
+                        const hasTimeOut = data.time_out && data.time_out !== '--' && data.time_out !== '';
+                        
+                        if (hasTimeIn && hasTimeOut) {
                             // Both time in and out - use server calculated time
-                            totalHoursEl.textContent = data.formatted_total_time || '—';
+                            totalHoursEl.textContent = (data.formatted_total_time && data.formatted_total_time !== '--') ? data.formatted_total_time : '—';
                             
                             // Clear interval if exists
                             if (totalTimeUpdateInterval) {
                                 clearInterval(totalTimeUpdateInterval);
                                 totalTimeUpdateInterval = null;
                             }
-                        } else if (data.time_in && !data.time_out) {
+                        } else if (hasTimeIn && !hasTimeOut) {
                             // Timed in but not out - calculate real-time
                             const timeInRaw = data.time_in_raw || data.time_in;
-                            const currentMinutes = calculateCurrentTotalTime(timeInRaw, data.date || new Date().toISOString().split('T')[0]);
-                            if (currentMinutes !== null) {
-                                totalHoursEl.textContent = formatTimeFromMinutes(currentMinutes);
-                                
-                                // Start interval to update every minute
-                                if (!totalTimeUpdateInterval) {
-                                    totalTimeUpdateInterval = setInterval(() => {
-                                        if (currentAttendanceData && currentAttendanceData.time_in && !currentAttendanceData.time_out) {
-                                            const timeInRaw = currentAttendanceData.time_in_raw || currentAttendanceData.time_in;
-                                            const minutes = calculateCurrentTotalTime(
-                                                timeInRaw, 
-                                                currentAttendanceData.date || new Date().toISOString().split('T')[0]
-                                            );
-                                            if (minutes !== null) {
-                                                totalHoursEl.textContent = formatTimeFromMinutes(minutes);
+                            if (timeInRaw && timeInRaw !== '--') {
+                                const currentMinutes = calculateCurrentTotalTime(timeInRaw, data.date || new Date().toISOString().split('T')[0]);
+                                if (currentMinutes !== null) {
+                                    totalHoursEl.textContent = formatTimeFromMinutes(currentMinutes);
+                                    
+                                    // Start interval to update every minute
+                                    if (!totalTimeUpdateInterval) {
+                                        totalTimeUpdateInterval = setInterval(() => {
+                                            if (currentAttendanceData && currentAttendanceData.time_in && !currentAttendanceData.time_out) {
+                                                const timeInRaw = currentAttendanceData.time_in_raw || currentAttendanceData.time_in;
+                                                if (timeInRaw && timeInRaw !== '--') {
+                                                    const minutes = calculateCurrentTotalTime(
+                                                        timeInRaw, 
+                                                        currentAttendanceData.date || new Date().toISOString().split('T')[0]
+                                                    );
+                                                    if (minutes !== null) {
+                                                        totalHoursEl.textContent = formatTimeFromMinutes(minutes);
+                                                    }
+                                                }
                                             }
-                                        }
-                                    }, 60000); // Update every minute
+                                        }, 60000); // Update every minute
+                                    }
+                                } else {
+                                    totalHoursEl.textContent = '—';
                                 }
                             } else {
                                 totalHoursEl.textContent = '—';
@@ -349,108 +377,6 @@
                 console.error('Error loading recent activity:', error);
             }
         }
-
-        // Time In handler
-        timeInBtn.addEventListener('click', async () => {
-            if (timeInBtn.disabled) return;
-            
-            timeInBtn.disabled = true;
-            timeInBtn.innerHTML = '<i data-lucide="loader" class="w-4 h-4 mr-1 animate-spin"></i> Processing...';
-            reloadLucideIcons();
-            
-            try {
-                const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || 
-                                 document.querySelector('input[name="_token"]')?.value ||
-                                 '';
-                
-                if (!csrfToken) {
-                    showMessage('CSRF token not found. Please refresh the page.', 'error');
-                    timeInBtn.disabled = false;
-                    timeInBtn.innerHTML = '<i data-lucide="log-in" class="w-4 h-4 mr-1"></i> Time In';
-                    reloadLucideIcons();
-                    return;
-                }
-
-                const response = await fetch('/api/attendance/time-in', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': csrfToken,
-                        'Accept': 'application/json'
-                    }
-                });
-                
-                const result = await response.json();
-                
-                if (response.ok && result.success) {
-                    await loadTodayAttendance();
-                    showMessage(result.message || 'Time in recorded successfully!', 'success');
-                } else {
-                    const errorMsg = result.message || result.error || 'Failed to time in';
-                    if (result.existing_time_in) {
-                        showMessage(errorMsg + ` (You timed in at ${result.existing_time_in})`, 'error');
-                    } else {
-                        showMessage(errorMsg, 'error');
-                    }
-                    await loadTodayAttendance();
-                }
-            } catch (error) {
-                console.error('Error timing in:', error);
-                showMessage('An error occurred while timing in: ' + error.message, 'error');
-                await loadTodayAttendance();
-            }
-        });
-
-        // Time Out handler
-        timeOutBtn.addEventListener('click', async () => {
-            if (timeOutBtn.disabled) return;
-            
-            timeOutBtn.disabled = true;
-            timeOutBtn.innerHTML = '<i data-lucide="loader" class="w-4 h-4 mr-1 animate-spin"></i> Processing...';
-            reloadLucideIcons();
-            
-            try {
-                const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || 
-                                 document.querySelector('input[name="_token"]')?.value ||
-                                 '';
-                
-                if (!csrfToken) {
-                    showMessage('CSRF token not found. Please refresh the page.', 'error');
-                    timeOutBtn.disabled = false;
-                    timeOutBtn.innerHTML = '<i data-lucide="log-out" class="w-4 h-4 mr-1"></i> Time Out';
-                    reloadLucideIcons();
-                    return;
-                }
-
-                const response = await fetch('/api/attendance/time-out', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': csrfToken,
-                        'Accept': 'application/json'
-                    }
-                });
-                
-                const result = await response.json();
-                
-                if (response.ok && result.success) {
-                    await loadTodayAttendance();
-                    showMessage(result.message || 'Time out recorded successfully!', 'success');
-                } else {
-                    const errorMsg = result.message || result.error || 'Failed to time out';
-                    if (result.existing_time_out) {
-                        showMessage(errorMsg + ` (You timed out at ${result.existing_time_out})`, 'error');
-                    } else {
-                        showMessage(errorMsg, 'error');
-                    }
-                    await loadTodayAttendance();
-                }
-            } catch (error) {
-                console.error('Error timing out:', error);
-                showMessage('An error occurred while timing out: ' + error.message, 'error');
-                await loadTodayAttendance();
-            }
-        });
 
         // Show message function
         function showMessage(message, type) {

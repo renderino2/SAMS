@@ -48,6 +48,7 @@
                                     <option value="Schedule Adjustment">Schedule Adjustment</option>
                                     <option value="Change Office">Change Office</option>
                                     <option value="Leave Request">Leave Request</option>
+                                    <option value="Resignation">Resignation</option>
                                 </select>
                             </div>
                             <div>
@@ -116,7 +117,7 @@
                                 <span id="detailOffice" class="text-slate-800"></span>
                             </div>
                             <div>
-                                <span class="font-medium text-slate-600">Request Type:</span>
+                                <span class="font-medium text-slate-600 whitespace-nowrap">Request Type:</span>
                                 <span id="detailType" class="text-slate-800"></span>
                             </div>
                             <div>
@@ -220,7 +221,7 @@
                         // Populate office filter
                         populateOfficeFilter();
                     } else {
-                        requestBody.innerHTML = '<tr><td colspan="9" class="text-center text-slate-500">' + (result.message || 'No requests found') + '</td></tr>';
+                        requestBody.innerHTML = '<tr><td colspan="9" class="text-center text-slate-500 whitespace-nowrap">' + (result.message || 'No requests found') + '</td></tr>';
                     }
                 } catch (error) {
                     console.error('Error loading requests:', error);
@@ -278,7 +279,7 @@
             // Render the request table
             function renderTable() {
                 if (filteredData.length === 0) {
-                    requestBody.innerHTML = '<tr><td colspan="9" class="text-center text-slate-500">No requests found</td></tr>';
+                    requestBody.innerHTML = '<tr><td colspan="9" class="text-center text-slate-500 whitespace-nowrap">No requests found</td></tr>';
                     reloadLucideIcons();
                     return;
                 }
@@ -289,17 +290,17 @@
                         <td>${request.name}</td>
                         <td>${request.studentId || 'N/A'}</td>
                         <td>${request.office || 'N/A'}</td>
-                        <td><span class="badge ${getTypeBadgeClass(request.type)} text-white rounded p-1">${request.type}</span></td>
+                        <td><span class="badge ${getTypeBadgeClass(request.type)} text-white rounded p-1 whitespace-nowrap">${request.type}</span></td>
                         <td>${formatDate(request.date)}</td>
-                        <td><span class="badge ${getStatusBadgeClass(request.status)} text-white rounded p-1">${request.status}</span></td>
-                        <td class="max-w-xs truncate" title="${request.reason}">${request.reason}</td>
+                        <td><span class="badge ${getStatusBadgeClass(request.status)} text-white rounded p-1 whitespace-nowrap">${request.status}</span></td>
+                        <td class="max-w-xs truncate whitespace-nowrap" title="${request.reason}">${request.reason}</td>
                         <td>
                             ${request.status === 'Pending' ? 
-                                `<button class="btn btn-primary btn-sm text-white" onclick="reviewRequest(${request.id})">
+                                `<button class="btn btn-primary btn-sm text-white whitespace-nowrap" onclick="reviewRequest(${request.id})">
                                     <i data-lucide="eye" class="w-4 h-4 mr-1"></i> Review
                                 </button>` 
                                 : 
-                                `<button class="btn btn-primary btn-sm text-white" onclick="reviewRequest(${request.id})" title="Already reviewed">
+                                `<button class="btn btn-primary btn-sm text-white whitespace-nowrap" onclick="reviewRequest(${request.id})" title="Already reviewed">
                                     <i data-lucide="check-circle" class="w-4 h-4 mr-1"></i> View
                                 </button>`}
                         </td>
@@ -313,23 +314,25 @@
             function getTypeBadgeClass(type) {
                 switch (type) {
                     case 'Schedule Adjustment':
-                        return 'bg-primary text-white';
+                        return 'bg-primary text-white whitespace-nowrap';
                     case 'Change Office':
-                        return 'bg-warning text-white';
+                        return 'bg-warning text-white whitespace-nowrap';
                     case 'Leave Request':
-                        return 'bg-danger text-white';
+                        return 'bg-danger text-white whitespace-nowrap';
+                    case 'Resignation':
+                        return 'bg-danger text-white whitespace-nowrap';
                     default:
-                        return 'bg-secondary text-white';
+                        return 'bg-secondary text-white whitespace-nowrap';
                 }
             }
 
             // Get status badge class
             function getStatusBadgeClass(status) {
                 switch (status) {
-                    case 'Pending': return 'bg-warning text-white';
-                    case 'Approved': return 'bg-success text-white';
-                    case 'Rejected': return 'bg-danger text-white';
-                    default: return 'bg-secondary text-white';
+                    case 'Pending': return 'bg-warning text-white whitespace-nowrap';
+                    case 'Approved': return 'bg-success text-white whitespace-nowrap';
+                    case 'Rejected': return 'bg-danger text-white whitespace-nowrap';
+                    default: return 'bg-danger text-white whitespace-nowrap';
                 }
             }
 

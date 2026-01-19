@@ -82,9 +82,9 @@
         <!-- END: Search -->
         <!-- BEGIN: Notifications -->
         <div class="intro-x dropdown mr-4 sm:mr-6">
-            <div class="dropdown-toggle notification notification--bullet cursor-pointer" role="button" aria-expanded="false" data-tw-toggle="dropdown">
+            {{-- <div class="dropdown-toggle notification notification--bullet cursor-pointer" role="button" aria-expanded="false" data-tw-toggle="dropdown">
                 <i data-lucide="bell" class="notification__icon dark:text-slate-500"></i>
-            </div>
+            </div> --}}
             <div class="notification-content pt-2 dropdown-menu">
                 <div class="notification-content__box dropdown-content">
                     <div class="notification-content__title">Notifications
@@ -128,11 +128,13 @@
                             <i data-lucide="user" class="w-4 h-4 mr-2"></i> Profile
                         </a>
                     </li>
+                    @if(Auth::user() && Auth::user()->role !== 'Student Assistant')
                     <li>
-                        <a href="{{ route('student.assistants') }}" class="dropdown-item hover:bg-white/5">
+                        <a href="{{ route('sa.account.management') }}" class="dropdown-item hover:bg-white/5">
                             <i data-lucide="edit" class="w-4 h-4 mr-2"></i> Add Student Account
                         </a>
                     </li>
+                    @endif
                     {{-- <li>
                         <a href="" class="dropdown-item hover:bg-white/5">
                             <i data-lucide="lock" class="w-4 h-4 mr-2"></i> Reset Password

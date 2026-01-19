@@ -281,23 +281,23 @@
             function getTypeBadgeClass(type) {
                 switch (type) {
                     case 'Schedule Adjustment':
-                        return 'bg-primary text-white';
+                        return 'bg-primary text-white whitespace-nowrap';
                     case 'Change Office':
-                        return 'bg-warning text-white';
+                        return 'bg-warning text-white whitespace-nowrap';
                     case 'Leave Request':
-                        return 'bg-danger text-white';
+                        return 'bg-danger text-white whitespace-nowrap';
                     default:
-                        return 'bg-secondary text-white';
+                        return 'bg-pending text-white whitespace-nowrap';
                 }
             }
 
             // Get status badge class
             function getStatusBadgeClass(status) {
                 switch (status) {
-                    case 'Pending': return 'bg-warning text-white';
-                    case 'Approved': return 'bg-success text-white';
-                    case 'Rejected': return 'bg-danger text-white';
-                    default: return 'bg-secondary text-white';
+                    case 'Pending': return 'bg-warning text-white whitespace-nowrap';
+                    case 'Approved': return 'bg-success text-white whitespace-nowrap';
+                    case 'Rejected': return 'bg-danger text-white whitespace-nowrap';
+                    default: return 'bg-danger text-white whitespace-nowrap';
                 }
             }
 

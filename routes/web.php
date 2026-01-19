@@ -70,6 +70,9 @@ Route::get('hr-requests-review', [AuthController::class, 'hrRequestsReview'])->n
 Route::post('requests-review/submit', [AuthController::class, 'submitRequestReview'])->name('requests.submit');
 Route::get('sa-management', [AuthController::class, 'officeHeadSAManagement'])->name('officehead.sa.management');
 Route::get('api/office-sas', [AuthController::class, 'getOfficeSAs'])->name('office.sas.index');
+Route::get('api/office-dashboard-stats', [AuthController::class, 'getOfficeDashboardStats'])->name('office.dashboard.stats');
+Route::get('api/analytics', [AuthController::class, 'getAnalytics'])->name('analytics');
+Route::post('api/apprentices/{id}/approve', [AuthController::class, 'approveApprentice'])->name('apprentices.approve');
 Route::get('api/sa-performance/{id}', [AuthController::class, 'getSAPerformance'])->name('sa.performance');
 Route::get('student-assistants', [AuthController::class, 'studentAssistants'])->name('student.assistants');
 Route::post('student-assistants/add', [AuthController::class, 'addStudentAssistant'])->name('student.assistants.add');

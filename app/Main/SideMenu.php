@@ -155,6 +155,7 @@ class SideMenu
                 //     ],
                 //     'title' => 'Student Assistant Management'
                 // ],
+                
                 'contract-management' => [
                     'icon' => 'file-text',
                     'route_name' => 'contract.management',
@@ -170,6 +171,14 @@ class SideMenu
                         'layout' => 'side-menu'
                     ],
                     'title' => 'Skill Inventory'
+                ],
+                'evaluation-form' => [
+                    'icon' => 'clipboard-check',
+                    'route_name' => 'evaluation.form',
+                    'params' => [
+                        'layout' => 'side-menu'
+                    ],
+                    'title' => 'Evaluation Form'
                 ],
                 'evaluation-review' => [
                     'icon' => 'clipboard-check',

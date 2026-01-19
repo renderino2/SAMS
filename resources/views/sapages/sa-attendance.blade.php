@@ -126,12 +126,12 @@
                 <div class="col-span-12 intro-y">
                     <div class="box p-5">
                         <div class="flex items-center justify-between mb-4">
-                            <h3 class="text-base font-medium flex items-center mr-2">
+                            <h3 class="text-base font-medium flex items-center mr-auto">
                                 <i data-lucide="clipboard-list" class="w-4 h-4 mr-2"></i>
                                 Attendance History
                             </h3>
                             <button id="refreshBtn" class="btn btn-outline-secondary btn-sm">
-                                <i data-lucide="refresh-cw" class="w-4 h-4 m"></i>
+                                <i data-lucide="refresh-cw" class="w-4 h-4 mr-2"></i>
                                 Refresh
                             </button>
                         </div>
