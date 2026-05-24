@@ -3904,6 +3904,9 @@ class AuthController extends Controller
         // Check for an open segment (timed in but not out)
         $todayAttendance = \App\Models\Attendance::where('user_id', $user->id)
             ->whereDate('date', $today)
+            ->whereNotNull('time_in')
+            ->whereNull('time_out')
+            ->orderBy('time_in', 'desc')
             ->first();
 
         if ($todayAttendance) {
@@ -3911,79 +3914,6 @@ class AuthController extends Controller
                 ->whereNotNull('time_in')
                 ->whereNull('time_out')
                 ->first();
-
-            if ($openSegment) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'You have an open time-in session. Please time out first before timing in again.',
-                    'existing_time_in' => $this->formatTime($today, $openSegment->time_in),
-                    'existing_date' => $today,
-                ], 422);
-            }
-        }
-
-        try {
-            $timeInPhoto = $this->processAttendancePhoto($request, $user->id, $today, 'time_in');
-            $expectedSegments = \App\Models\Attendance::buildExpectedSegments($user);
-
-            // Determine which segment order this time-in is for
-            $isFirstTimeIn = !$todayAttendance;
-
-            if ($isFirstTimeIn) {
-                // Create the parent attendance record
-                $officeName = $this->resolveOfficeName($user);
-                $todayAttendance = \App\Models\Attendance::create([
-                    'user_id'           => $user->id,
-                    'student_id_number' => $user->student_id_number,
-                    'name'              => $user->full_name ?? $user->name ?? 'Unknown',
-                    'office'            => $officeName ?? null,
-                    'date'              => $today,
-                    'time_in'           => $timeIn,
-                    'time_in_photo'     => $timeInPhoto,
-                    'status'            => 'Present',
-                    'review_status'     => null,
-                ]);
-                $segmentOrder = 1;
-            } else {
-                // Returning from break — next segment
-                $lastOrder = \App\Models\AttendanceSegment::where('attendance_id', $todayAttendance->id)
-                    ->max('segment_order') ?? 0;
-                $segmentOrder = $lastOrder + 1;
-            }
-
-            // Match to an expected segment
-            $expectedForThisSegment = $expectedSegments[$segmentOrder - 1] ?? null;
-            $segmentType = 'scheduled';
-            $expectedTimeIn  = $expectedForThisSegment['expected_time_in'] ?? null;
-            $expectedTimeOut = $expectedForThisSegment['expected_time_out'] ?? null;
-
-            if (!$expectedForThisSegment && !$isFirstTimeIn) {
-                // No matching expected segment — this is an unscheduled return
-                $segmentType = 'unscheduled';
-                $expectedTimeIn  = null;
-                $expectedTimeOut = null;
-            }
-
-            // Determine status: Present or Late
-            if ($isFirstTimeIn) {
-                $statusResult = $this->determineTimeInStatus($timeIn, $user->scheduled_time_in, $today);
-            } elseif ($expectedTimeIn) {
-                $statusResult = $this->determineTimeInStatus($timeIn, $expectedTimeIn, $today, 'Return from break');
-            } else {
-                $statusResult = ['status' => 'Present', 'remarks' => null, 'late_minutes' => 0];
-            }
-
-            // Create the segment
-            $segment = \App\Models\AttendanceSegment::create([
-                'attendance_id'    => $todayAttendance->id,
-                'segment_order'    => $segmentOrder,
-                'segment_type'     => $segmentType,
-                'expected_time_in' => $expectedTimeIn,
-                'expected_time_out'=> $expectedTimeOut,
-                'time_in'          => $timeIn,
-                'time_in_photo'    => $timeInPhoto,
-                'status'           => $statusResult['status'],
-                'remarks'          => $statusResult['remarks'],
             ]);
 
             // Update parent attendance status based on first segment
@@ -4045,6 +3975,9 @@ class AuthController extends Controller
             // Find today's attendance
             $attendance = \App\Models\Attendance::where('user_id', $user->id)
                 ->whereDate('date', $today)
+                ->whereNotNull('time_in')
+                ->whereNull('time_out')
+                ->orderBy('time_in', 'desc')
                 ->first();
 
             if (!$attendance) {
@@ -4071,6 +4004,37 @@ class AuthController extends Controller
                 $segmentMinutes = $tOut->diffInMinutes($tIn);
             } catch (\Exception $e) {
                 \Log::error('Error calculating segment minutes', ['error' => $e->getMessage()]);
+            }
+            
+            // Calculate total minutes worked today (including all completed sessions + current session)
+            $totalMinutesToday = $totalMinutes; // Start with current session
+            $completedSessions = \App\Models\Attendance::where('user_id', $user->id)
+                ->whereDate('date', $today)
+                ->whereNotNull('time_in')
+                ->whereNotNull('time_out')
+                ->where('id', '!=', $attendance->id) // Exclude current session
+                ->get();
+            
+            foreach ($completedSessions as $session) {
+                if ($session->total_minutes) {
+                    $totalMinutesToday += $session->total_minutes;
+                }
+            }
+            
+            // Automatic overtime detection (no blocking - just log it)
+            $isOvertime = false;
+            $minimumMinutes = 300; // 5 hours
+            if ($totalMinutesToday > $minimumMinutes) {
+                $isOvertime = true;
+                // Log overtime session
+                \Log::info('Overtime detected for Student Assistant', [
+                    'user_id' => $user->id,
+                    'email' => $user->email,
+                    'date' => $today,
+                    'total_minutes_today' => $totalMinutesToday,
+                    'overtime_minutes' => $totalMinutesToday - $minimumMinutes,
+                    'sessions_count' => $completedSessions->count() + 1
+                ]);
             }
 
             // Detect if this time-out is off-schedule
@@ -4099,6 +4063,71 @@ class AuthController extends Controller
                 } catch (\Exception $e) {
                     \Log::warning('Error checking off-schedule time-out', ['error' => $e->getMessage()]);
                 }
+            }
+            
+            // Log session (time in and time out)
+            \Log::info('Attendance session completed', [
+                'user_id' => $user->id,
+                'email' => $user->email,
+                'attendance_id' => $attendance->id,
+                'date' => $today,
+                'time_in' => $attendance->time_in,
+                'time_out' => $timeOut,
+                'total_minutes' => $totalMinutes,
+                'total_minutes_today' => $totalMinutesToday,
+                'status' => $status,
+                'is_overtime' => $isOvertime,
+                'session_number' => $completedSessions->count() + 1
+            ]);
+
+            // Handle photo upload if provided
+            $timeOutPhoto = null;
+            try {
+                if ($request->hasFile('photo')) {
+                    $photo = $request->file('photo');
+                    $photoName = 'time_out_' . $user->id . '_' . $today . '_' . time() . '.' . $photo->getClientOriginalExtension();
+                    $photoPath = $photo->storeAs('attendance_photos', $photoName, 'public');
+                    $timeOutPhoto = $photoPath;
+                } elseif ($request->has('photo_base64') && !empty($request->input('photo_base64'))) {
+                    // Handle base64 image from camera
+                    $base64Image = $request->input('photo_base64');
+                    if (preg_match('/^data:image\/(\w+);base64,/', $base64Image, $type)) {
+                        $image = substr($base64Image, strpos($base64Image, ',') + 1);
+                        $image = base64_decode($image, true);
+                        
+                        if ($image === false) {
+                            \Log::warning('Failed to decode base64 image for time out', ['user_id' => $user->id]);
+                        } else {
+                            $type = strtolower($type[1]);
+                            
+                            if (!in_array($type, ['jpg', 'jpeg', 'png'])) {
+                                \Log::warning('Invalid image type for time out', ['type' => $type, 'user_id' => $user->id]);
+                            } else {
+                                // Ensure directory exists
+                                $directory = storage_path('app/public/attendance_photos');
+                                if (!\File::exists($directory)) {
+                                    \File::makeDirectory($directory, 0755, true);
+                                }
+                                
+                                $photoName = 'time_out_' . $user->id . '_' . $today . '_' . time() . '.' . $type;
+                                $photoPath = 'attendance_photos/' . $photoName;
+                                
+                                if (\Storage::disk('public')->put($photoPath, $image)) {
+                                    $timeOutPhoto = $photoPath;
+                                } else {
+                                    \Log::error('Failed to save time out photo', ['user_id' => $user->id, 'path' => $photoPath]);
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (\Exception $photoError) {
+                // Log photo error but don't block time out
+                \Log::error('Error processing time out photo: ' . $photoError->getMessage(), [
+                    'user_id' => $user->id,
+                    'error' => $photoError->getTraceAsString()
+                ]);
+                // Continue without photo - photo is optional for now
             }
 
             // Build remarks
@@ -4158,6 +4187,56 @@ class AuthController extends Controller
                     ];
                 });
 
+            // Format total time for today
+            $formattedTotalTimeToday = '--';
+            if ($totalMinutesToday > 0) {
+                $hours = floor($totalMinutesToday / 60);
+                $minutes = $totalMinutesToday % 60;
+                if ($hours > 0 && $minutes > 0) {
+                    $formattedTotalTimeToday = "{$hours}h {$minutes}m";
+                } elseif ($hours > 0) {
+                    $formattedTotalTimeToday = "{$hours}h";
+                } else {
+                    $formattedTotalTimeToday = "{$minutes}m";
+                }
+            }
+            
+            // Get all sessions for today for logging
+            $allSessionsToday = \App\Models\Attendance::where('user_id', $user->id)
+                ->whereDate('date', $today)
+                ->whereNotNull('time_in')
+                ->orderBy('time_in', 'asc')
+                ->get()
+                ->map(function($session) use ($dateString) {
+                    $timeInFmt = null;
+                    $timeOutFmt = null;
+                    if ($session->time_in) {
+                        try {
+                            $timeInFmt = \Carbon\Carbon::parse($dateString . ' ' . $session->time_in, 'Asia/Manila')
+                                ->setTimezone('Asia/Manila')
+                                ->format('g:i A');
+                        } catch (\Exception $e) {
+                            $timeInFmt = $session->time_in;
+                        }
+                    }
+                    if ($session->time_out) {
+                        try {
+                            $timeOutFmt = \Carbon\Carbon::parse($dateString . ' ' . $session->time_out, 'Asia/Manila')
+                                ->setTimezone('Asia/Manila')
+                                ->format('g:i A');
+                        } catch (\Exception $e) {
+                            $timeOutFmt = $session->time_out;
+                        }
+                    }
+                    return [
+                        'id' => $session->id,
+                        'time_in' => $timeInFmt,
+                        'time_out' => $timeOutFmt,
+                        'total_minutes' => $session->total_minutes,
+                        'status' => $session->status,
+                    ];
+                });
+
             return response()->json([
                 'success' => true,
                 'message' => $isOffSchedule
@@ -4206,11 +4285,13 @@ class AuthController extends Controller
         $today = now('Asia/Manila')->toDateString();
 
         try {
-            $attendance = \App\Models\Attendance::where('user_id', $user->id)
+            // Get all attendance records for today, ordered by time_in desc
+            $attendances = \App\Models\Attendance::where('user_id', $user->id)
                 ->whereDate('date', $today)
-                ->first();
+                ->orderBy('time_in', 'desc')
+                ->get();
 
-            if (!$attendance) {
+            if ($attendances->isEmpty()) {
                 return response()->json([
                     'success' => true,
                     'data' => null,

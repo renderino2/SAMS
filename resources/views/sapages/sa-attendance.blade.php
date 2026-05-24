@@ -837,6 +837,7 @@
                                 loginStatus.innerHTML = '<strong class="text-primary">Timed Out</strong>';
                                 loginStatus.classList.remove('text-danger', 'text-success');
                                 loginStatus.classList.add('text-primary');
+
                                 timeOutBtn.disabled = true;
                                 timeOutBtn.innerHTML = '<i data-lucide="log-out" class="w-4 h-4 mr-2"></i> Time Out';
                                 timeInBtn.disabled = false;
