@@ -46,6 +46,10 @@
                                 </div>
                                 @if(Auth::user()->role === 'Student Assistant')
                                 <div class="flex items-center">
+                                    <span class="font-medium text-slate-600 w-24">Gender:</span>
+                                    <span id="gender" class="text-slate-800">—</span>
+                                </div>
+                                <div class="flex items-center">
                                     <span class="font-medium text-slate-600 w-24">Course:</span>
                                     <span id="course" class="text-slate-800">—</span>
                                 </div>
@@ -57,6 +61,8 @@
                                     <span class="font-medium text-slate-600 w-24">Section:</span>
                                     <span id="section" class="text-slate-800">—</span>
                                 </div>
+                               
+                                
                                 @endif
                                 <div class="flex items-center">
                                     <span class="font-medium text-slate-600 w-24">Role:</span>
@@ -75,60 +81,23 @@
                                     <span class="font-medium text-slate-600 w-24">Guardian Address:</span>
                                     <span id="guardianAddress" class="text-slate-800">—</span>
                                 </div>
+                                <div class="flex items-center">
+                                    <span class="font-medium text-slate-600 w-24">Contract Start:</span>
+                                    <span id="contractStart" class="text-slate-800">—</span>
+                                </div>
+                                <div class="flex items-center">
+                                    <span class="font-medium text-slate-600 w-24">Contract End:</span>
+                                    <span id="contractEnd" class="text-slate-800">—</span>
+                                </div>
+                                <div class="flex items-center">
+                                    <span class="font-medium text-slate-600 w-24">Scheduled Time In:</span>
+                                    <span id="scheduledTimeIn" class="text-slate-800">—</span>
+                                </div>
                                 @endif
                             </div>
                         </div>
                     </div>
                 </div>
-
-                @if(Auth::user()->role === 'Student Assistant')
-                <!-- Resignation Request -->
-                <div class="col-span-12 intro-y">
-                    <div class="box p-5">
-                        <h2 class="text-lg font-medium mb-4 flex items-center">
-                            <i data-lucide="file-x" class="w-5 h-5 mr-2"></i>
-                            Resignation Request
-                        </h2>
-                        <p class="text-slate-500 mb-4">Submit a resignation request with your reason. Your Office Head will review and respond to your request.</p>
-                        
-                        <!-- Resignation Form -->
-                        <div id="resignationForm">
-                            <div class="mb-4">
-                                <label for="resignationReason" class="form-label">Reason for Resignation <span class="text-danger">*</span></label>
-                                <select id="resignationReason" class="form-control" required>
-                                    <option value="">Select reason...</option>
-                                    <option value="Graduated">Graduated</option>
-                                    <option value="Transferring to Another School">Transferring to Another School</option>
-                                    <option value="Personal Reasons">Personal Reasons</option>
-                                    <option value="Health Reasons">Health Reasons</option>
-                                    <option value="Other">Other</option>
-                                </select>
-                            </div>
-                            <div class="mb-4">
-                                <label for="resignationMessage" class="form-label">Additional Message (Optional)</label>
-                                <textarea id="resignationMessage" class="form-control" rows="3" placeholder="Please provide any additional details or comments about your resignation..."></textarea>
-                            </div>
-                            <button id="submitResignationBtn" class="btn btn-danger" onclick="submitResignation()">
-                                <i data-lucide="file-x" class="w-4 h-4 mr-2"></i>
-                                Submit Resignation Request
-                            </button>
-                        </div>
-
-                        <!-- Current Resignation Status -->
-                        <div id="resignationStatus" class="mt-4" style="display: none;">
-                            <div class="alert" id="resignationStatusAlert">
-                                <div class="flex items-center">
-                                    <i data-lucide="info" class="w-4 h-4 mr-2"></i>
-                                    <div>
-                                        <div class="font-medium" id="resignationStatusTitle">Resignation Request Status</div>
-                                        <div class="text-sm mt-1" id="resignationStatusMessage"></div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                @endif
             </div>
         </div>
     </div>
@@ -152,143 +121,43 @@
                     document.getElementById('address').textContent = user.address || '—';
                     
                     @if(Auth::user()->role === 'Student Assistant')
+                    // Format gender
+                    const gender = user.gender || '—';
+                    document.getElementById('gender').textContent = gender.charAt(0).toUpperCase() + gender.slice(1) || '—';
+                    
                     document.getElementById('course').textContent = user.course || '—';
                     document.getElementById('yearLevel').textContent = user.year_level || '—';
                     document.getElementById('section').textContent = user.section || '—';
                     document.getElementById('guardianAddress').textContent = user.guardian_address || '—';
+                    
+                    // Format scheduled time in
+                    if (user.scheduled_time_in) {
+                        const timeParts = user.scheduled_time_in.split(':');
+                        const hour = parseInt(timeParts[0]);
+                        const minute = timeParts[1];
+                        const ampm = hour >= 12 ? 'PM' : 'AM';
+                        const displayHour = hour % 12 || 12;
+                        document.getElementById('scheduledTimeIn').textContent = `${displayHour}:${minute} ${ampm}`;
+                    } else {
+                        document.getElementById('scheduledTimeIn').textContent = 'Not set';
+                    }
+                    
+                    // Format contract dates
+                    const formatDate = (dateString) => {
+                        if (!dateString) return '—';
+                        const date = new Date(dateString);
+                        return date.toLocaleDateString('en-US', { 
+                            year: 'numeric', 
+                            month: 'long', 
+                            day: 'numeric' 
+                        });
+                    };
+                    document.getElementById('contractStart').textContent = formatDate(user.contract_start_date);
+                    document.getElementById('contractEnd').textContent = formatDate(user.contract_end_date);
                     @endif
                 }
             }
 
-            // Load resignation status
-            async function loadResignationStatus() {
-                try {
-                    const response = await fetch('/api/sa-requests', {
-                        headers: {
-                            'Accept': 'application/json'
-                        }
-                    });
-                    
-                    const result = await response.json();
-                    
-                    if (result.success && result.data) {
-                        // Filter for resignation requests and get most recent
-                        const resignationRequests = result.data.filter(req => req.request_type === 'Resignation');
-                        if (resignationRequests.length > 0) {
-                            const resignation = resignationRequests[0]; // Get most recent resignation request
-                            showResignationStatus(resignation);
-                        }
-                    }
-                } catch (error) {
-                    console.error('Error loading resignation status:', error);
-                }
-            }
-
-            // Show resignation status
-            function showResignationStatus(resignation) {
-                const statusDiv = document.getElementById('resignationStatus');
-                const statusAlert = document.getElementById('resignationStatusAlert');
-                const statusTitle = document.getElementById('resignationStatusTitle');
-                const statusMessage = document.getElementById('resignationStatusMessage');
-                const formDiv = document.getElementById('resignationForm');
-                
-                let alertClass = 'alert-info';
-                let statusText = 'Pending Review';
-                
-                if (resignation.status === 'Approved') {
-                    alertClass = 'alert-success';
-                    statusText = 'Approved';
-                } else if (resignation.status === 'Rejected') {
-                    alertClass = 'alert-danger';
-                    statusText = 'Rejected';
-                }
-                
-                statusAlert.className = `alert ${alertClass} flex items-center`;
-                statusTitle.textContent = `Resignation Request - ${statusText}`;
-                
-                let message = `Reason: ${resignation.request_type || 'Resignation'}`;
-                if (resignation.message) {
-                    message += `<br>Message: ${resignation.message}`;
-                }
-                if (resignation.remarks) {
-                    message += `<br>Remarks: ${resignation.remarks}`;
-                }
-                if (resignation.reviewed_at) {
-                    const reviewedDate = new Date(resignation.reviewed_at).toLocaleDateString();
-                    message += `<br>Reviewed on: ${reviewedDate}`;
-                }
-                
-                statusMessage.innerHTML = message;
-                
-                statusDiv.style.display = 'block';
-                
-                // Hide form if request is already processed
-                if (resignation.status !== 'Pending') {
-                    formDiv.style.display = 'none';
-                } else {
-                    // Disable form if pending
-                    document.getElementById('submitResignationBtn').disabled = true;
-                    document.getElementById('submitResignationBtn').innerHTML = '<i data-lucide="loader" class="w-4 h-4 mr-2 animate-spin"></i> Request Pending...';
-                }
-            }
-
-            // Submit resignation request (global scope for onclick)
-            window.submitResignation = async function() {
-                const reason = document.getElementById('resignationReason').value;
-                const message = document.getElementById('resignationMessage').value;
-                const submitBtn = document.getElementById('submitResignationBtn');
-                
-                if (!reason) {
-                    alert('Please select a reason for resignation.');
-                    return;
-                }
-                
-                // Build full message with reason
-                const fullMessage = `Reason: ${reason}${message ? '\n\nAdditional Message: ' + message : ''}`;
-                
-                submitBtn.disabled = true;
-                submitBtn.innerHTML = '<i data-lucide="loader" class="w-4 h-4 mr-2 animate-spin"></i> Submitting...';
-                
-                try {
-                    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-                    
-                    const response = await fetch('/api/requests', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRF-TOKEN': csrfToken,
-                            'Accept': 'application/json'
-                        },
-                        body: JSON.stringify({
-                            request_type: 'Resignation',
-                            message: fullMessage
-                        })
-                    });
-                    
-                    const result = await response.json();
-                    
-                    if (response.ok && result.success) {
-                        // Reload resignation status
-                        await loadResignationStatus();
-                        
-                        // Show success message
-                        alert('Resignation request submitted successfully! Your Office Head will review it.');
-                        
-                        // Reset form
-                        document.getElementById('resignationReason').value = '';
-                        document.getElementById('resignationMessage').value = '';
-                    } else {
-                        alert(result.message || 'Failed to submit resignation request. Please try again.');
-                        submitBtn.disabled = false;
-                        submitBtn.innerHTML = '<i data-lucide="file-x" class="w-4 h-4 mr-2"></i> Submit Resignation Request';
-                    }
-                } catch (error) {
-                    console.error('Error submitting resignation:', error);
-                    alert('An error occurred while submitting your resignation request. Please try again.');
-                    submitBtn.disabled = false;
-                    submitBtn.innerHTML = '<i data-lucide="file-x" class="w-4 h-4 mr-2"></i> Submit Resignation Request';
-                }
-            };
 
             // Reload Lucide icons
             function reloadLucideIcons() {
@@ -304,9 +173,6 @@
             // Initialize page
             document.addEventListener('DOMContentLoaded', function() {
                 loadProfileData();
-                @if(Auth::user()->role === 'Student Assistant')
-                loadResignationStatus();
-                @endif
                 reloadLucideIcons();
             });
         })();

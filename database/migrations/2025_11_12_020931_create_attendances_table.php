@@ -17,7 +17,7 @@ return new class extends Migration
         
         Schema::create('attendances', function (Blueprint $table) {
             $table->id();
-            $table->unsignedInteger('user_id');
+                $table->unsignedInteger('user_id');
             $table->string('student_id_number')->nullable();
             $table->string('name');
             $table->string('office')->nullable();

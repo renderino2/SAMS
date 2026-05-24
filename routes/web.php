@@ -17,6 +17,11 @@ use App\Http\Controllers\ColorSchemeController;
 |
 */
 
+// Redirect root domain to login page (handles Cloudflare tunnel root hits)
+Route::get('/', function () {
+    return redirect()->route('login.index');
+});
+
 Route::get('dark-mode-switcher', [DarkModeController::class, 'switch'])->name('dark-mode-switcher');
 Route::get('color-scheme-switcher/{color_scheme}', [ColorSchemeController::class, 'switch'])->name('color-scheme-switcher');
 
@@ -42,6 +47,7 @@ Route::get('api/attendance/history', [AuthController::class, 'getAttendanceHisto
 Route::get('sa-requests', [AuthController::class, 'saRequests'])->name('sa.requests');
 Route::get('api/sa-requests', [AuthController::class, 'getSARequests'])->name('sa.requests.index');
 Route::post('api/requests', [AuthController::class, 'createRequest'])->name('requests.create');
+Route::post('api/officehead-sa-requests', [AuthController::class, 'createOfficeHeadSARequest'])->name('officehead.sa.requests.create');
 Route::get('api/office-requests', [AuthController::class, 'getOfficeRequests'])->name('office.requests.index');
 Route::get('api/all-requests', [AuthController::class, 'getAllRequests'])->name('all.requests.index');
 Route::put('api/requests/{id}', [AuthController::class, 'processRequest'])->name('requests.process');
@@ -58,25 +64,38 @@ Route::get('settings', [AuthController::class, 'settings'])->name('settings');
 Route::post('settings/update-account', [AuthController::class, 'updateAccount'])->name('settings.update-account');
 Route::get('dtr-monitoring', [AuthController::class, 'dtrMonitoring'])->name('dtr.monitoring');
 Route::get('api/office-attendances', [AuthController::class, 'getOfficeAttendances'])->name('office.attendances.index');
+Route::get('api/user-attendance-details/{userId}', [AuthController::class, 'getUserAttendanceDetails'])->name('user.attendance.details');
+Route::post('api/attendance/{id}/verify-photos', [AuthController::class, 'verifyAttendancePhotos'])->name('attendance.verify.photos');
 Route::post('dtr-monitoring/review', [AuthController::class, 'reviewDTR'])->name('dtr.review');
+Route::post('api/approve-overtime', [AuthController::class, 'approveOvertime'])->name('overtime.approve');
+Route::post('api/mark-absence', [AuthController::class, 'markAbsence'])->name('absence.mark');
 Route::get('evaluation-form', [AuthController::class, 'evaluationForm'])->name('evaluation.form');
 Route::post('evaluation-form/submit', [AuthController::class, 'submitEvaluation'])->name('evaluation.submit');
 Route::get('api/evaluations', [AuthController::class, 'getEvaluations'])->name('evaluations.index');
 Route::get('api/evaluations/{id}', [AuthController::class, 'getEvaluation'])->name('evaluations.show');
 Route::put('api/evaluations/{id}', [AuthController::class, 'updateEvaluation'])->name('evaluations.update');
 Route::delete('api/evaluations/{id}', [AuthController::class, 'deleteEvaluation'])->name('evaluations.delete');
+Route::get('api/evaluation-criteria-settings', [AuthController::class, 'getEvaluationCriteriaSettings'])->name('evaluation.criteria.settings');
+Route::put('api/evaluation-criteria-settings', [AuthController::class, 'updateEvaluationCriteriaSettings'])->name('evaluation.criteria.settings.update');
 Route::get('requests-review', [AuthController::class, 'requestsReview'])->name('requests.review');
 Route::get('hr-requests-review', [AuthController::class, 'hrRequestsReview'])->name('hr.requests.review');
 Route::post('requests-review/submit', [AuthController::class, 'submitRequestReview'])->name('requests.submit');
 Route::get('sa-management', [AuthController::class, 'officeHeadSAManagement'])->name('officehead.sa.management');
+Route::get('officehead-sa-account-management', [AuthController::class, 'officeHeadSAAccountManagement'])->name('officehead.sa.account.management');
 Route::get('api/office-sas', [AuthController::class, 'getOfficeSAs'])->name('office.sas.index');
+Route::put('api/office-sas/{id}', [AuthController::class, 'updateOfficeSA'])->name('office.sas.update');
 Route::get('api/office-dashboard-stats', [AuthController::class, 'getOfficeDashboardStats'])->name('office.dashboard.stats');
+Route::get('api/hr-dashboard-stats', [AuthController::class, 'getHRDashboardStats'])->name('hr.dashboard.stats');
 Route::get('api/analytics', [AuthController::class, 'getAnalytics'])->name('analytics');
+Route::get('api/attendance-summary', [AuthController::class, 'getAttendanceSummary'])->name('attendance.summary');
+Route::get('api/sa-attendance-stats', [AuthController::class, 'getSAAttendanceStats'])->name('sa.attendance.stats');
+Route::put('api/update-attendance', [AuthController::class, 'updateAttendance'])->name('attendance.update');
 Route::post('api/apprentices/{id}/approve', [AuthController::class, 'approveApprentice'])->name('apprentices.approve');
 Route::get('api/sa-performance/{id}', [AuthController::class, 'getSAPerformance'])->name('sa.performance');
 Route::get('student-assistants', [AuthController::class, 'studentAssistants'])->name('student.assistants');
 Route::post('student-assistants/add', [AuthController::class, 'addStudentAssistant'])->name('student.assistants.add');
 Route::get('contract-management', [AuthController::class, 'contractManagement'])->name('contract.management');
+Route::get('api/contracts', [AuthController::class, 'getContracts'])->name('contracts.index');
 Route::post('contract-management/upload', [AuthController::class, 'uploadContract'])->name('contract.upload');
 Route::get('skill-inventory', [AuthController::class, 'skillInventory'])->name('skill.inventory');
 Route::get('skill-review', [AuthController::class, 'skillReview'])->name('skill.review');
@@ -85,6 +104,7 @@ Route::get('evaluation-review', [AuthController::class, 'evaluationReview'])->na
 Route::post('evaluation-review/save', [AuthController::class, 'saveEvaluationReview'])->name('evaluation.review.save');
 Route::get('reports', [AuthController::class, 'reports'])->name('reports');
 Route::post('reports/download', [AuthController::class, 'downloadReport'])->name('reports.download');
+Route::get('api/reports/performance', [AuthController::class, 'getPerformanceData'])->name('reports.performance');
 Route::get('office-management', [AuthController::class, 'officeManagement'])->name('office.management');
 Route::get('api/offices', [AuthController::class, 'getOffices'])->name('offices.index');
 Route::get('api/offices/{id}', [AuthController::class, 'getOffice'])->name('offices.show');
@@ -105,7 +125,7 @@ Route::put('api/sa-accounts/{id}', [AuthController::class, 'updateSAAccount'])->
 Route::delete('api/sa-accounts/{id}', [AuthController::class, 'deleteSAAccount'])->name('sa.accounts.delete');
     
     Route::controller(PageController::class)->group(function() {
-        Route::get('/', 'dashboardOverview1')->name('dashboard-overview-1');
+        Route::get('/dashboard-Overview-1-page', 'dashboardOverview1')->name('dashboard-overview-1');
         Route::get('dashboard-overview-2-page', 'dashboardOverview2')->name('dashboard-overview-2');
         Route::get('dashboard-overview-3-page', 'dashboardOverview3')->name('dashboard-overview-3');
         Route::get('dashboard-overview-4-page', 'dashboardOverview4')->name('dashboard-overview-4');

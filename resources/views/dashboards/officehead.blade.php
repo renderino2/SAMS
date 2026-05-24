@@ -22,36 +22,47 @@
                 <!-- END: Office Head Dashboard Header -->
 
                 <!-- BEGIN: Stats Cards -->
-                <div class="col-span-12 sm:col-span-6 xl:col-span-4 intro-y">
+                <div class="col-span-12 sm:col-span-6 xl:col-span-3 intro-y">
                     <div class="report-box zoom-in">
                         <div class="box p-5">
                             <div class="flex items-center">
                                 <i data-lucide="users" class="report-box__icon text-primary"></i>
                             </div>
-                            <div class="text-3xl font-medium leading-8 mt-6" id="assignedCount">—</div>
-                            <div class="text-base text-slate-500 mt-1">Assigned Student Assistants</div>
+                            <div class="text-3xl font-medium leading-8 mt-6" id="totalSACount">—</div>
+                            <div class="text-base text-slate-500 mt-1">Office Assistants</div>
                         </div>
                     </div>
                 </div>
-                <div class="col-span-12 sm:col-span-6 xl:col-span-4 intro-y">
+                <div class="col-span-12 sm:col-span-6 xl:col-span-3 intro-y">
                     <div class="report-box zoom-in">
                         <div class="box p-5">
                             <div class="flex items-center">
-                                <i data-lucide="calendar" class="report-box__icon text-success"></i>
+                                <i data-lucide="file-check" class="report-box__icon text-success"></i>
                             </div>
-                            <div class="text-3xl font-medium leading-8 mt-6" id="attendanceCount">—</div>
-                            <div class="text-base text-slate-500 mt-1">Attendance Today</div>
+                            <div class="text-3xl font-medium leading-8 mt-6" id="activeContractsCount">—</div>
+                            <div class="text-base text-slate-500 mt-1">Active Contracts</div>
                         </div>
                     </div>
                 </div>
-                <div class="col-span-12 sm:col-span-6 xl:col-span-4 intro-y">
+                <div class="col-span-12 sm:col-span-6 xl:col-span-3 intro-y">
                     <div class="report-box zoom-in">
                         <div class="box p-5">
                             <div class="flex items-center">
                                 <i data-lucide="clipboard-check" class="report-box__icon text-warning"></i>
                             </div>
-                            <div class="text-3xl font-medium leading-8 mt-6" id="evalStatus">—</div>
-                            <div class="text-base text-slate-500 mt-1">Evaluation Status</div>
+                            <div class="text-3xl font-medium leading-8 mt-6" id="pendingEvaluationsCount">—</div>
+                            <div class="text-base text-slate-500 mt-1">Pending Evaluations</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-span-12 sm:col-span-6 xl:col-span-3 intro-y">
+                    <div class="report-box zoom-in">
+                        <div class="box p-5">
+                            <div class="flex items-center">
+                                <i data-lucide="alert-circle" class="report-box__icon text-danger"></i>
+                            </div>
+                            <div class="text-3xl font-medium leading-8 mt-6" id="expiringContractsCount">—</div>
+                            <div class="text-base text-slate-500 mt-1">Expiring Contracts</div>
                         </div>
                     </div>
                 </div>
@@ -59,14 +70,14 @@
 
                 <!-- BEGIN: Analytics Charts -->
                 <div class="col-span-12 grid grid-cols-12 gap-6 mt-8">
-                    <!-- Donut Chart: Student Assistants by Department -->
+                    <!-- Donut Chart: Student Assistants Added by Month -->
                     <div class="col-span-12 lg:col-span-6 intro-y">
                         <div class="box p-5">
                             <div class="flex items-center h-10 mb-5">
-                                <h2 class="text-lg font-medium truncate mr-5">Student Assistants by Department</h2>
+                                <h2 class="text-lg font-medium truncate mr-5">Student Assistants Added by Month</h2>
                             </div>
                             <div class="h-[400px]">
-                                <canvas id="sa-by-department-chart"></canvas>
+                                <canvas id="sa-by-month-chart"></canvas>
                             </div>
                         </div>
                     </div>
@@ -97,43 +108,6 @@
                 </div>
                 <!-- END: Analytics Charts -->
 
-                <!-- BEGIN: DTR Summary Table -->
-                <div class="col-span-12 mt-8 intro-y">
-                    <div class="box p-5">
-                        <div class="flex items-center h-10">
-                            <h2 class="text-lg font-medium truncate mr-5">DTR Summary per Assistant</h2>
-                        </div>
-                        <div class="overflow-x-auto mt-5">
-                            <table class="table table-report">
-                                <thead>
-                                    <tr>
-                                        <th class="whitespace-nowrap">NAME</th>
-                                        <th class="whitespace-nowrap">ATTENDANCE</th>
-                                        <th class="whitespace-nowrap">TIME IN / OUT</th>
-                                        <th class="whitespace-nowrap">STATUS</th>
-                                        <th class="whitespace-nowrap">ACTIONS</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="dtrTableBody">
-                                    <tr>
-                                        <td colspan="5" class="text-center text-slate-500">Loading DTR data...</td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                        
-                        <!-- Action Buttons -->
-                        <div class="flex items-center justify-center mt-6 gap-3">
-                            <button class="btn btn-success" onclick="approveOvertime()">
-                                <i data-lucide="check-circle" class="w-4 h-4 mr-2"></i> Approve Overtime
-                            </button>
-                            <button class="btn btn-danger" onclick="markAbsence()">
-                                <i data-lucide="x-circle" class="w-4 h-4 mr-2"></i> Mark Absence
-                            </button>
-                        </div>
-                    </div>
-                </div>
-                <!-- END: DTR Summary Table -->
             </div>
         </div>
 
@@ -141,6 +115,30 @@
         <div class="col-span-12 2xl:col-span-3">
             <div class="2xl:border-l -mb-10 pb-10">
                 <div class="2xl:pl-6 grid grid-cols-12 gap-x-6 2xl:gap-x-0 gap-y-6">
+                    <!-- BEGIN: Total Pending Requests -->
+                    <div class="col-span-12 mt-3 2xl:mt-8">
+                        <div class="intro-x flex items-center h-10">
+                            <h2 class="text-lg font-medium truncate mr-5">Total Pending Requests</h2>
+                        </div>
+                        <div class="mt-5 box p-5">
+                            <a href="{{ route('requests.review') }}" class="block">
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <div class="text-3xl font-medium leading-8" id="pendingRequestsCount">0</div>
+                                        <div class="text-base text-slate-500 mt-1">Requests Awaiting Review</div>
+                                    </div>
+                                    <div class="flex items-center">
+                                        <i data-lucide="file-text" class="w-12 h-12 text-warning"></i>
+                                    </div>
+                                </div>
+                                <div class="mt-4">
+                                    <span class="text-sm text-slate-600 hover:text-primary">View all requests →</span>
+                                </div>
+                            </a>
+                        </div>
+                    </div>
+                    <!-- END: Total Pending Requests -->
+
                     <!-- BEGIN: Quick Actions -->
                     
                     <!-- END: Quick Actions -->
@@ -225,18 +223,36 @@
     </div>
     @endsection
 @section('script')
+<!-- Lucide Icons CDN -->
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
 <!-- Chart.js CDN -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
+   window.reloadLucideIcons = function () {
+    if (window.lucide && lucide.icons) {
+        lucide.createIcons({ icons: lucide.icons });
+    }
+};
+
     document.addEventListener('DOMContentLoaded', function() {
         // DOM elements
-        const assignedCountEl = document.getElementById('assignedCount');
-        const attendanceCountEl = document.getElementById('attendanceCount');
-        const evalStatusEl = document.getElementById('evalStatus');
-        const dtrTableBody = document.getElementById('dtrTableBody');
-
-        // Load office dashboard statistics
-        async function loadDashboardStats() {
+        const totalSACountEl = document.getElementById('totalSACount');
+        const activeContractsCountEl = document.getElementById('activeContractsCount');
+        const pendingEvaluationsCountEl = document.getElementById('pendingEvaluationsCount');
+        const expiringContractsCountEl = document.getElementById('expiringContractsCount');
+        // Load office dashboard statistics (make it globally accessible)
+        window.loadDashboardStats = async function() {
+            // Get DOM elements dynamically (accessible from global scope)
+            const totalSACountEl = document.getElementById('totalSACount');
+            const activeContractsCountEl = document.getElementById('activeContractsCount');
+            const pendingEvaluationsCountEl = document.getElementById('pendingEvaluationsCount');
+            const expiringContractsCountEl = document.getElementById('expiringContractsCount');
+            
+            if (!totalSACountEl || !activeContractsCountEl || !pendingEvaluationsCountEl || !expiringContractsCountEl) {
+                console.error('Dashboard stats elements not found');
+                return;
+            }
+            
             try {
                 const response = await fetch('/api/office-dashboard-stats', {
                     headers: {
@@ -258,20 +274,23 @@
                     const data = result.data;
                     
                     // Update stats cards
-                    assignedCountEl.textContent = data.assigned_count || 0;
-                    attendanceCountEl.textContent = data.attendance_today || 0;
-                    evalStatusEl.textContent = data.evaluation_count || 0;
+                    totalSACountEl.textContent = data.total_student_assistants || 0;
+                    activeContractsCountEl.textContent = data.active_contracts || 0;
+                    pendingEvaluationsCountEl.textContent = data.pending_evaluations || 0;
+                    expiringContractsCountEl.textContent = data.expiring_contracts || 0;
                 } else {
                     console.error('Failed to load dashboard stats:', result.message);
-                    assignedCountEl.textContent = '—';
-                    attendanceCountEl.textContent = '—';
-                    evalStatusEl.textContent = '—';
+                    totalSACountEl.textContent = '—';
+                    activeContractsCountEl.textContent = '—';
+                    pendingEvaluationsCountEl.textContent = '—';
+                    expiringContractsCountEl.textContent = '—';
                 }
             } catch (error) {
                 console.error('Error loading dashboard stats:', error);
-                assignedCountEl.textContent = '—';
-                attendanceCountEl.textContent = '—';
-                evalStatusEl.textContent = '—';
+                if (totalSACountEl) totalSACountEl.textContent = '—';
+                if (activeContractsCountEl) activeContractsCountEl.textContent = '—';
+                if (pendingEvaluationsCountEl) pendingEvaluationsCountEl.textContent = '—';
+                if (expiringContractsCountEl) expiringContractsCountEl.textContent = '—';
             }
         }
 
@@ -478,81 +497,13 @@
             }
         };
 
-        // Load DTR summary table
-        async function loadDTRSummary() {
-            try {
-                const response = await fetch('/api/office-attendances?date=' + new Date().toISOString().split('T')[0], {
-                    headers: {
-                        'Accept': 'application/json'
-                    }
-                });
-                
-                const contentType = response.headers.get('content-type');
-                if (!contentType || !contentType.includes('application/json')) {
-                    return;
-                }
-                
-                const result = await response.json();
-                
-                if (result.success && result.data && result.data.length > 0) {
-                    dtrTableBody.innerHTML = result.data.map(record => {
-                        const timeIn = record.time_in ? record.time_in : '—';
-                        const timeOut = record.time_out ? record.time_out : '—';
-                        const statusBadge = getStatusBadge(record.status || 'Present');
-                        
-                        return `
-                            <tr>
-                                <td>${record.name || record.student_name || '—'}</td>
-                                <td>${record.status || 'Present'}</td>
-                                <td>${timeIn} / ${timeOut}</td>
-                                <td>${statusBadge}</td>
-                                <td>
-                                    <button class="btn btn-sm btn-outline-primary" onclick="viewDetails(${record.user_id || record.id})">
-                                        View Details
-                                    </button>
-                                </td>
-                            </tr>
-                        `;
-                    }).join('');
-                } else {
-                    dtrTableBody.innerHTML = '<tr><td colspan="5" class="text-center text-slate-500">No attendance records for today</td></tr>';
-                }
-            } catch (error) {
-                console.error('Error loading DTR summary:', error);
-                dtrTableBody.innerHTML = '<tr><td colspan="5" class="text-center text-slate-500">Error loading attendance data</td></tr>';
-            }
-        }
+        // Chart variables (make them globally accessible)
+        window.saByMonthChart = null;
+        window.attendanceMonthChart = null;
+        window.attendanceStatusChart = null;
 
-        // Get status badge HTML
-        function getStatusBadge(status) {
-            const badges = {
-                'Present': '<span class="badge bg-success text-white rounded p-1">Present</span>',
-                'Late': '<span class="badge bg-warning text-white rounded p-1">Late</span>',
-                'Absent': '<span class="badge bg-danger text-white rounded p-1">Absent</span>',
-                'Completed': '<span class="badge bg-primary text-white rounded p-1">Completed</span>',
-                'Incomplete': '<span class="badge bg-secondary text-white rounded p-1">Incomplete</span>'
-            };
-            return badges[status] || '<span class="badge bg-secondary text-white rounded p-1">' + status + '</span>';
-        }
-
-        // Reload Lucide icons
-        function reloadLucideIcons() {
-            if (window.lucide && window.lucide.createIcons) {
-                window.lucide.createIcons({
-                    icons: window.lucide.icons,
-                    "stroke-width": 1.5,
-                    nameAttr: "data-lucide",
-                });
-            }
-        }
-
-        // Chart variables
-        let saDepartmentChart = null;
-        let attendanceMonthChart = null;
-        let attendanceStatusChart = null;
-
-        // Load analytics data and initialize charts
-        async function loadAnalytics() {
+        // Load analytics data and initialize charts (make it globally accessible)
+        window.loadAnalytics = async function() {
             try {
                 const response = await fetch('/api/analytics', {
                     headers: {
@@ -569,8 +520,8 @@
                 if (result.success && result.data) {
                     const data = result.data;
                     
-                    // Initialize Donut Chart: Student Assistants by Department
-                    initSADepartmentChart(data.sa_by_office || []);
+                    // Initialize Donut Chart: Student Assistants Added by Month
+                    initSAByMonthChart(data.sa_by_month || []);
                     
                     // Initialize Bar Chart: Attendance by Month
                     initAttendanceMonthChart(data.attendance_by_month || []);
@@ -583,19 +534,19 @@
             }
         }
 
-        // Initialize Student Assistants by Department Donut Chart
-        function initSADepartmentChart(data) {
-            const ctx = document.getElementById('sa-by-department-chart');
+        // Initialize Student Assistants Added by Month Donut Chart
+        function initSAByMonthChart(data) {
+            const ctx = document.getElementById('sa-by-month-chart');
             if (!ctx) return;
 
-            const labels = data.map(item => item.office || 'N/A');
+            const labels = data.map(item => item.month || 'N/A');
             const values = data.map(item => item.count || 0);
             
-            if (saDepartmentChart) {
-                saDepartmentChart.destroy();
+            if (window.saByMonthChart) {
+                window.saByMonthChart.destroy();
             }
 
-            saDepartmentChart = new Chart(ctx.getContext('2d'), {
+            window.saByMonthChart = new Chart(ctx.getContext('2d'), {
                 type: 'doughnut',
                 data: {
                     labels: labels,
@@ -623,6 +574,15 @@
                                 usePointStyle: true,
                             },
                         },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const label = context.label || '';
+                                    const value = context.parsed || 0;
+                                    return `${label}: ${value} student assistant${value !== 1 ? 's' : ''}`;
+                                }
+                            }
+                        }
                     },
                     cutout: '80%',
                 },
@@ -637,11 +597,11 @@
             const labels = data.map(item => item.month || 'N/A');
             const values = data.map(item => item.count || 0);
             
-            if (attendanceMonthChart) {
-                attendanceMonthChart.destroy();
+            if (window.attendanceMonthChart) {
+                window.attendanceMonthChart.destroy();
             }
 
-            attendanceMonthChart = new Chart(ctx.getContext('2d'), {
+            window.attendanceMonthChart = new Chart(ctx.getContext('2d'), {
                 type: 'bar',
                 data: {
                     labels: labels,
@@ -687,11 +647,11 @@
                 data.Incomplete || 0,
             ];
             
-            if (attendanceStatusChart) {
-                attendanceStatusChart.destroy();
+            if (window.attendanceStatusChart) {
+                window.attendanceStatusChart.destroy();
             }
 
-            attendanceStatusChart = new Chart(ctx.getContext('2d'), {
+            window.attendanceStatusChart = new Chart(ctx.getContext('2d'), {
                 type: 'pie',
                 data: {
                     labels: labels,
@@ -724,18 +684,86 @@
             });
         }
 
+        // Load pending requests count
+        async function loadPendingRequestsCount() {
+            try {
+                const response = await fetch('/api/office-requests', {
+                    headers: {
+                        'Accept': 'application/json'
+                    }
+                });
+                
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    const text = await response.text();
+                    console.error('Non-JSON response:', text.substring(0, 200));
+                    const pendingCountEl = document.getElementById('pendingRequestsCount');
+                    if (pendingCountEl) pendingCountEl.textContent = '0';
+                    return;
+                }
+                
+                const result = await response.json();
+                
+                if (result.success && result.data && Array.isArray(result.data)) {
+                    const pendingCount = result.data.filter(request => request.status === 'Pending').length;
+                    const pendingCountEl = document.getElementById('pendingRequestsCount');
+                    if (pendingCountEl) pendingCountEl.textContent = pendingCount;
+                } else {
+                    const pendingCountEl = document.getElementById('pendingRequestsCount');
+                    if (pendingCountEl) pendingCountEl.textContent = '0';
+                }
+            } catch (error) {
+                console.error('Error loading pending requests count:', error);
+                const pendingCountEl = document.getElementById('pendingRequestsCount');
+                if (pendingCountEl) pendingCountEl.textContent = '0';
+            }
+        }
+
+        // Create local references for use within the DOMContentLoaded scope (after all functions are defined)
+        const loadDashboardStats = window.loadDashboardStats;
+        const loadAnalytics = window.loadAnalytics;
+
+        // Listen for evaluation updates from other tabs/pages
+        function setupEvaluationUpdateListener() {
+            if (typeof BroadcastChannel !== 'undefined') {
+                const channel = new BroadcastChannel('dashboard-updates');
+                channel.addEventListener('message', (event) => {
+                    if (event.data.type === 'evaluation-submitted') {
+                        // Refresh dashboard stats when evaluation is submitted
+                        console.log('Evaluation submitted detected, refreshing dashboard stats...');
+                        loadDashboardStats();
+                    }
+                });
+            }
+            
+            // Also refresh when window regains focus (fallback)
+            window.addEventListener('focus', () => {
+                console.log('Window focused, refreshing dashboard stats...');
+                loadDashboardStats();
+            });
+            
+            // Refresh when page becomes visible (user switches back to tab)
+            document.addEventListener('visibilitychange', () => {
+                if (!document.hidden) {
+                    console.log('Page visible, refreshing dashboard stats...');
+                    loadDashboardStats();
+                }
+            });
+        }
+
         // Initialize
         async function init() {
-            await Promise.all([loadDashboardStats(), loadDTRSummary(), loadApprentices(), loadResignationRequests(), loadAnalytics()]);
+            await Promise.all([loadDashboardStats(), loadApprentices(), loadResignationRequests(), loadAnalytics(), loadPendingRequestsCount()]);
+            setupEvaluationUpdateListener();
             reloadLucideIcons();
             
             // Refresh stats every 30 seconds
             setInterval(async () => {
                 await loadDashboardStats();
-                await loadDTRSummary();
                 await loadApprentices();
                 await loadResignationRequests();
                 await loadAnalytics();
+                await loadPendingRequestsCount();
             }, 30000);
         }
 
@@ -743,22 +771,5 @@
         init();
     });
 
-        function approveOvertime() {
-            // Implement approve overtime functionality
-            console.log('Approving overtime...');
-        alert('Overtime approval functionality coming soon!');
-        }
-
-        function markAbsence() {
-            // Implement mark absence functionality
-            console.log('Marking absence...');
-        alert('Mark absence functionality coming soon!');
-    }
-
-    function viewDetails(userId) {
-        // Implement view details functionality
-        console.log('Viewing details for user:', userId);
-        // Could redirect to a detail page or open a modal
-        }
     </script>
 @endsection

@@ -67,7 +67,7 @@
                 <!-- BEGIN: Analytics Charts -->
                 <div class="col-span-12 grid grid-cols-12 gap-6 mt-8">
                     <!-- Donut Chart: Student Assistants by Department -->
-                    <div class="col-span-12 lg:col-span-4 intro-y">
+                    <div class="col-span-12 lg:col-span-6 intro-y">
                         <div class="box p-5">
                             <div class="flex items-center h-10 mb-5">
                                 <h2 class="text-lg font-medium truncate mr-5">Student Assistants by Department</h2>
@@ -79,7 +79,7 @@
                     </div>
 
                     <!-- Vertical Bar Chart: Attendance by Month -->
-                    <div class="col-span-12 lg:col-span-8 intro-y">
+                    <div class="col-span-12 lg:col-span-6 intro-y">
                         <div class="box p-5">
                             <div class="flex items-center h-10 mb-5">
                                 <h2 class="text-lg font-medium truncate mr-5">Attendance by Month</h2>
@@ -91,7 +91,7 @@
                     </div>
 
                     <!-- Pie Chart: Attendance Status -->
-                    <div class="col-span-12 lg:col-span-4 intro-y">
+                    <div class="col-span-12 lg:col-span-12 intro-y">
                         <div class="box p-5">
                             <div class="flex items-center h-10 mb-5">
                                 <h2 class="text-lg font-medium truncate mr-5">Attendance Status Today</h2>
@@ -139,18 +139,29 @@
         <div class="col-span-12 2xl:col-span-3">
             <div class="2xl:border-l -mb-10 pb-10">
                 <div class="2xl:pl-6 grid grid-cols-12 gap-x-6 2xl:gap-x-0 gap-y-6">
-                    <!-- BEGIN: Recent Activity -->
+                    <!-- BEGIN: Total Pending Requests -->
                     <div class="col-span-12 mt-3 2xl:mt-8">
                         <div class="intro-x flex items-center h-10">
-                            <h2 class="text-lg font-medium truncate mr-5">Recent Activity</h2>
+                            <h2 class="text-lg font-medium truncate mr-5">Total Pending Requests</h2>
                         </div>
                         <div class="mt-5 box p-5">
-                            <ul id="notificationsList" class="list-disc pl-5 text-slate-600">
-                                <li>Loading notifications...</li>
-                            </ul>
+                            <a href="{{ route('hr.requests.review') }}" class="block">
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <div class="text-3xl font-medium leading-8" id="pendingRequestsCount">0</div>
+                                        <div class="text-base text-slate-500 mt-1">Requests Awaiting Review</div>
+                                    </div>
+                                    <div class="flex items-center">
+                                        <i data-lucide="file-text" class="w-12 h-12 text-warning"></i>
+                                    </div>
+                                </div>
+                                <div class="mt-4">
+                                    <span class="text-sm text-slate-600 hover:text-primary">View all requests →</span>
+                                </div>
+                            </a>
                         </div>
                     </div>
-                    <!-- END: Recent Activity -->
+                    <!-- END: Total Pending Requests -->
 
                     <!-- BEGIN: Quick Actions -->
                     <div class="col-span-12 mt-3">
@@ -355,8 +366,186 @@
             });
         }
 
-        // Load analytics on page load
+        // DOM elements for stats cards
+        const totalSAsEl = document.getElementById('totalSAs');
+        const activeContractsEl = document.getElementById('activeContracts');
+        const pendingEvalsEl = document.getElementById('pendingEvals');
+        const expiringContractsEl = document.getElementById('expiringContracts');
+
+        // Load HR dashboard statistics
+        async function loadHRDashboardStats() {
+            try {
+                const response = await fetch('/api/hr-dashboard-stats', {
+                    headers: {
+                        'Accept': 'application/json'
+                    }
+                });
+                
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    const text = await response.text();
+                    console.error('Non-JSON response:', text.substring(0, 200));
+                    totalSAsEl.textContent = '0';
+                    activeContractsEl.textContent = '0';
+                    pendingEvalsEl.textContent = '0';
+                    expiringContractsEl.textContent = '0';
+                    return;
+                }
+                
+                const result = await response.json();
+                console.log('HR Dashboard stats response:', result);
+                
+                if (result.success && result.data) {
+                    const data = result.data;
+                    
+                    // Update stats cards
+                    totalSAsEl.textContent = data.total_student_assistants || 0;
+                    activeContractsEl.textContent = data.active_contracts || 0;
+                    pendingEvalsEl.textContent = data.pending_evaluations || 0;
+                    expiringContractsEl.textContent = data.expiring_contracts || 0;
+                } else {
+                    console.error('Failed to load HR dashboard stats:', result.message);
+                    totalSAsEl.textContent = '0';
+                    activeContractsEl.textContent = '0';
+                    pendingEvalsEl.textContent = '0';
+                    expiringContractsEl.textContent = '0';
+                }
+            } catch (error) {
+                console.error('Error loading HR dashboard stats:', error);
+                totalSAsEl.textContent = '0';
+                activeContractsEl.textContent = '0';
+                pendingEvalsEl.textContent = '0';
+                expiringContractsEl.textContent = '0';
+            }
+        }
+
+        // Load attendance summary
+        async function loadAttendanceSummary() {
+            try {
+                const response = await fetch('/api/attendance-summary', {
+                    headers: {
+                        'Accept': 'application/json'
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const result = await response.json();
+                const attendanceBody = document.getElementById('attendanceBody');
+                
+                if (result.success && result.data && Array.isArray(result.data)) {
+                    if (result.data.length === 0) {
+                        attendanceBody.innerHTML = '<tr><td colspan="6" class="text-center text-slate-500">No attendance data available</td></tr>';
+                        return;
+                    }
+                    
+                    attendanceBody.innerHTML = result.data.map(item => `
+                        <tr>
+                            <td class="whitespace-nowrap">${item.office || 'N/A'}</td>
+                            <td class="whitespace-nowrap">${item.total || 0}</td>
+                            <td class="whitespace-nowrap">
+                                <span class="badge bg-success text-white rounded px-2 py-1">${item.present || 0}</span>
+                            </td>
+                            <td class="whitespace-nowrap">
+                                <span class="badge bg-warning text-white rounded px-2 py-1">${item.late || 0}</span>
+                            </td>
+                            <td class="whitespace-nowrap">
+                                <span class="badge bg-danger text-white rounded px-2 py-1">${item.absent || 0}</span>
+                            </td>
+                            <td class="whitespace-nowrap">
+                                <span class="badge bg-primary text-white rounded px-2 py-1">${item.overtime || 0}</span>
+                            </td>
+                        </tr>
+                    `).join('');
+                } else {
+                    attendanceBody.innerHTML = '<tr><td colspan="6" class="text-center text-slate-500">' + (result.message || 'No attendance data available') + '</td></tr>';
+                }
+            } catch (error) {
+                console.error('Error loading attendance summary:', error);
+                const attendanceBody = document.getElementById('attendanceBody');
+                attendanceBody.innerHTML = '<tr><td colspan="6" class="text-center text-slate-500">Error loading attendance data</td></tr>';
+            }
+        }
+
+        // Load pending requests count
+        async function loadPendingRequestsCount() {
+            try {
+                const response = await fetch('/api/all-requests', {
+                    headers: {
+                        'Accept': 'application/json'
+                    }
+                });
+                
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    const text = await response.text();
+                    console.error('Non-JSON response:', text.substring(0, 200));
+                    document.getElementById('pendingRequestsCount').textContent = '0';
+                    return;
+                }
+                
+                const result = await response.json();
+                
+                if (result.success && result.data && Array.isArray(result.data)) {
+                    const pendingCount = result.data.filter(request => request.status === 'Pending').length;
+                    document.getElementById('pendingRequestsCount').textContent = pendingCount;
+                } else {
+                    document.getElementById('pendingRequestsCount').textContent = '0';
+                }
+            } catch (error) {
+                console.error('Error loading pending requests count:', error);
+                document.getElementById('pendingRequestsCount').textContent = '0';
+            }
+        }
+
+        // Listen for office updates from other tabs/pages
+        function setupOfficeUpdateListener() {
+            // Use BroadcastChannel for cross-tab communication
+            if (typeof BroadcastChannel !== 'undefined') {
+                const channel = new BroadcastChannel('office-updates');
+                channel.addEventListener('message', (event) => {
+                    if (event.data.type === 'office-updated' || event.data.type === 'office-created' || event.data.type === 'office-deleted') {
+                        // Reload analytics to update office names in charts
+                        loadAnalytics();
+                        loadAttendanceSummary();
+                    }
+                });
+            }
+            
+            // Listen for request updates
+            if (typeof BroadcastChannel !== 'undefined') {
+                const requestChannel = new BroadcastChannel('request-updates');
+                requestChannel.addEventListener('message', (event) => {
+                    if (event.data.type === 'request-created' || event.data.type === 'request-updated') {
+                        loadPendingRequestsCount();
+                    }
+                });
+            }
+            
+            // Also refresh when window regains focus (fallback)
+            window.addEventListener('focus', () => {
+                loadAnalytics();
+                loadAttendanceSummary();
+                loadPendingRequestsCount();
+            });
+        }
+
+        // Load analytics and stats on page load
         loadAnalytics();
+        loadHRDashboardStats();
+        loadAttendanceSummary();
+        loadPendingRequestsCount();
+        setupOfficeUpdateListener();
+        
+        // Refresh stats every 30 seconds
+        setInterval(async () => {
+            await loadHRDashboardStats();
+            await loadAnalytics();
+            await loadAttendanceSummary();
+            await loadPendingRequestsCount();
+        }, 30000);
     });
 </script>
 @endsection

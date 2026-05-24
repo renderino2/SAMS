@@ -132,12 +132,6 @@
                                 <input type="password" id="confirm_password" name="confirm_password" class="form-control" 
                                        placeholder="Confirm new password" />
                             </div>
-                            <div class="col-span-12">
-                                <button type="submit" class="btn btn-primary">
-                                    <i data-lucide="save" class="w-4 h-4 mr-2"></i>
-                                    Update Account
-                                </button>
-                            </div>
                         </form>
                         <div id="message" class="mt-3"></div>
                     </div>
@@ -251,8 +245,11 @@
                     return;
                 }
 
-                // Show loading state
-                const submitBtn = settingsForm.querySelector('button[type="submit"]');
+                // Show loading state - get both the form button and fixed button
+                const formSubmitBtn = settingsForm.querySelector('button[type="submit"]');
+                const fixedSubmitBtn = document.querySelector('button[form="settingsForm"]');
+                const submitBtn = fixedSubmitBtn || formSubmitBtn;
+                
                 const originalText = submitBtn.innerHTML;
                 submitBtn.disabled = true;
                 submitBtn.innerHTML = '<i data-lucide="loader" class="w-4 h-4 mr-2 animate-spin"></i> Updating...';

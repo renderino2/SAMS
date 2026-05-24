@@ -26,6 +26,7 @@ class User extends Authenticatable
         'password_hash',
         'role',
         'office',
+        'office_id',
         'contact',
         'gender',
         'active',
@@ -36,6 +37,11 @@ class User extends Authenticatable
         'course',
         'year_level',
         'section',
+        'contract_start_date',
+        'contract_end_date',
+        'scheduled_time_in',
+        'scheduled_time_out',
+        'work_schedule',
     ];
 
     /**
@@ -56,6 +62,7 @@ class User extends Authenticatable
      */
     protected $casts = [
         'email_verified_at' => 'datetime',
+        'work_schedule' => 'array',
     ];
 
     /**
@@ -98,5 +105,21 @@ class User extends Authenticatable
         } else {
             return asset('build/assets/images/placeholders/200x200.jpg');
         }
+    }
+
+    /**
+     * Get the office that the user belongs to.
+     */
+    public function officeRelation()
+    {
+        return $this->belongsTo(Office::class, 'office_id');
+    }
+
+    /**
+     * Get the office name (for backward compatibility).
+     */
+    public function getOfficeNameAttribute()
+    {
+        return $this->officeRelation ? $this->officeRelation->name : $this->office;
     }
 }

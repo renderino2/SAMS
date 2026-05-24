@@ -44,7 +44,7 @@
                     </div>
                     <div class="intro-x mt-5 xl:mt-8 text-center xl:text-left">
                         <button id="btn-login" class="btn btn-primary py-3 px-4 w-full xl:w-32 xl:mr-3 align-top">Login</button>
-                        <a id="register-link" href="{{ route('register.index') }}" class="btn btn-outline-secondary py-3 px-4 w-full xl:w-32 xl:mt-0 align-top">Register</a>
+                        {{-- <a id="register-link" href="{{ route('register.index') }}" class="btn btn-outline-primary py-3 px-4 w-full xl:w-32 xl:mt-0 align-top">Register</a> --}}
                     </div>
                     <div class="intro-x mt-10 xl:mt-24 text-slate-600 dark:text-slate-500 text-center xl:text-left">
                         By signin up, you agree to our <a class="text-primary dark:text-slate-200" href="">Terms and Conditions </a> & <a class="text-primary dark:text-slate-200" href="">Privacy Policy</a>
@@ -60,6 +60,45 @@
     <script type="module">
         (function () {
             // No role selection needed; always show Register link
+
+            // Get user's current location
+            function getCurrentLocation() {
+                return new Promise((resolve, reject) => {
+                    if (!navigator.geolocation) {
+                        reject(new Error('Geolocation is not supported by your browser.'))
+                        return
+                    }
+
+                    navigator.geolocation.getCurrentPosition(
+                        (position) => {
+                            resolve({
+                                latitude: position.coords.latitude,
+                                longitude: position.coords.longitude
+                            })
+                        },
+                        (error) => {
+                            let errorMessage = 'Unable to retrieve your location.'
+                            switch(error.code) {
+                                case error.PERMISSION_DENIED:
+                                    errorMessage = 'Location access denied. Please enable location services to log in.'
+                                    break
+                                case error.POSITION_UNAVAILABLE:
+                                    errorMessage = 'Location information is unavailable.'
+                                    break
+                                case error.TIMEOUT:
+                                    errorMessage = 'Location request timed out. Please try again.'
+                                    break
+                            }
+                            reject(new Error(errorMessage))
+                        },
+                        {
+                            enableHighAccuracy: true,
+                            timeout: 10000,
+                            maximumAge: 0
+                        }
+                    )
+                })
+            }
 
             async function login() {
                 // Reset state
@@ -86,40 +125,125 @@
                 // Loading state
                 $('#btn-login').html('<i data-loading-icon="oval" data-color="white" class="w-5 h-5 mx-auto"></i>')
                 tailwind.svgLoader()
-                await helper.delay(1500)
+                await helper.delay(500)
 
-                axios.post(`login`, {
+                // Get CSRF token
+                const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
+                if (!csrfToken) {
+                    console.error('CSRF token not found')
+                    $('#btn-login').html('Login')
+                    $('#email').addClass('border-danger')
+                    $('#error-email').html('Security token missing. Please refresh the page.')
+                    return
+                }
+
+                // Prepare login data
+                let loginData = {
                     email: email,
                     password: password
+                }
+
+                // Get location for Student Assistants (we'll check after getting user info, but request it now)
+                // For now, we'll always request location and let the backend decide if it's needed
+                let locationError = null
+                try {
+                    const location = await getCurrentLocation()
+                    // Ensure coordinates are numbers, not strings
+                    loginData.latitude = parseFloat(location.latitude)
+                    loginData.longitude = parseFloat(location.longitude)
+                    
+                    // Validate coordinates
+                    if (isNaN(loginData.latitude) || isNaN(loginData.longitude)) {
+                        throw new Error('Invalid location coordinates received')
+                    }
+                    
+                    console.log('Location captured:', {
+                        latitude: loginData.latitude,
+                        longitude: loginData.longitude
+                    })
+                } catch (error) {
+                    // If location fails, we'll still try to login
+                    // The backend will check if the user is a Student Assistant and reject if location is missing
+                    locationError = error
+                    console.warn('Location error:', error.message)
+                    // Don't add location to loginData - backend will handle the error
+                }
+
+                await helper.delay(1000)
+
+                // Make sure axios has CSRF token configured
+                if (window.axios && !window.axios.defaults.headers.common['X-CSRF-TOKEN']) {
+                    window.axios.defaults.headers.common['X-CSRF-TOKEN'] = csrfToken
+                }
+
+                axios.post(`login`, loginData, {
+                    headers: {
+                        'X-CSRF-TOKEN': csrfToken,
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    }
                 }).then(res => {
                     // Redirect based on role
                     let redirectUrl = res.data.redirect || '/'
                     location.href = redirectUrl
                 }).catch(err => {
                     $('#btn-login').html('Login')
-                    if (err.response && err.response.data && err.response.data.errors) {
-                        for (const [key, val] of Object.entries(err.response.data.errors)) {
-                            $(`#${key}`).addClass('border-danger')
-                            $(`#error-${key}`).html(val)
+                    console.error('Login error:', err)
+                    
+                    if (err.response && err.response.data) {
+                        const responseData = err.response.data
+                        
+                        // Handle validation errors
+                        if (responseData.errors) {
+                            for (const [key, val] of Object.entries(responseData.errors)) {
+                                $(`#${key}`).addClass('border-danger')
+                                $(`#error-${key}`).html(Array.isArray(val) ? val[0] : val)
+                            }
+                            return
                         }
-                    } else if (err.response && err.response.data && err.response.data.message) {
-                        // Handle specific error messages
-                        if (err.response.data.message.includes('User not found') || err.response.data.message.includes('Invalid credentials')) {
-                            $('#email').addClass('border-danger')
-                            $('#error-email').html(err.response.data.message)
-                        } else if (err.response.data.message.includes('password')) {
-                            $('#password').addClass('border-danger')
-                            $('#error-password').html(err.response.data.message)
-                        } else {
-                            // Generic error
-                            $('#email').addClass('border-danger')
-                            $('#error-email').html(err.response.data.message)
+                        
+                        // Handle error messages
+                        if (responseData.message) {
+                            const errorMessage = responseData.message
+                            const distance = responseData.distance
+                            
+                            // Build full error message with distance if available
+                            let fullMessage = errorMessage
+                            if (distance !== undefined && distance !== null) {
+                                fullMessage += ` (Distance: ${distance} meters)`
+                            }
+                            
+                            if (errorMessage.includes('Location access is required') || 
+                                errorMessage.includes('outside the campus area') ||
+                                errorMessage.includes('location')) {
+                                // Location-related errors - show on both fields or a general message
+                                $('#email').addClass('border-danger')
+                                $('#error-email').html(fullMessage)
+                                $('#password').addClass('border-danger')
+                                if (locationError) {
+                                    $('#error-password').html('Location access failed: ' + locationError.message)
+                                } else {
+                                    $('#error-password').html('Please enable location services and try again.')
+                                }
+                            } else if (errorMessage.includes('User not found') || errorMessage.includes('Invalid credentials')) {
+                                $('#email').addClass('border-danger')
+                                $('#error-email').html(errorMessage)
+                            } else if (errorMessage.includes('password')) {
+                                $('#password').addClass('border-danger')
+                                $('#error-password').html(errorMessage)
+                            } else {
+                                // Generic error
+                                $('#email').addClass('border-danger')
+                                $('#error-email').html(fullMessage)
+                            }
+                            return
                         }
-                    } else {
-                        // Network or other error
-                        $('#email').addClass('border-danger')
-                        $('#error-email').html('Network error. Please try again.')
                     }
+                    
+                    // Network or other error
+                    $('#email').addClass('border-danger')
+                    $('#error-email').html('Network error. Please try again.')
+                    console.error('Unexpected error:', err)
                 })
             }
 

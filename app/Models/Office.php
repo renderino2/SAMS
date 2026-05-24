@@ -34,4 +34,20 @@ class Office extends Model
     protected $casts = [
         'is_active' => 'boolean',
     ];
+
+    /**
+     * Get the users that belong to this office.
+     */
+    public function users()
+    {
+        return $this->hasMany(User::class, 'office_id');
+    }
+
+    /**
+     * Get the office heads that belong to this office.
+     */
+    public function officeHeads()
+    {
+        return $this->hasMany(User::class, 'office_id')->where('role', 'Office Head');
+    }
 }

@@ -39,6 +39,9 @@ class Evaluation extends Model
         'rated_by',
         'head_of_office',
         'status',
+        'hr_rating',
+        'hr_comments',
+        'criteria_questions',
     ];
 
     /**
@@ -49,6 +52,7 @@ class Evaluation extends Model
     protected $casts = [
         'evaluation_date' => 'date',
         'average_score' => 'decimal:1',
+        'criteria_questions' => 'array',
     ];
 
     /**

@@ -42,7 +42,7 @@
                                 </button>
                             </div>
                         </div>
-                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div class="grid grid-cols-4 md:grid-cols-2 lg:grid-cols-4 gap-4">
                             <div class="p-2 bg-slate-50 dark:bg-darkmode-400 rounded-lg text-center justify-center items-center">
                                 <div class="text-slate-500 text-sm mb-1">Total Records</div>
                                 <div class="text-2xl font-semibold" id="summaryTotal">0</div>
@@ -116,14 +116,16 @@
                                         <th>Office</th>
                                         <th>Date</th>
                                         <th>Time In</th>
+                                        <th>Time In Photo</th>
                                         <th>Time Out</th>
+                                        <th>Time Out Photo</th>
                                         <th>Status</th>
                                         <th>Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody id="dtrTableBody">
                                     <tr>
-                                        <td colspan="9" class="text-center text-slate-500">Loading...</td>
+                                        <td colspan="11" class="text-center text-slate-500">Loading...</td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -164,6 +166,20 @@
                                 <span id="detailStatus" class="text-slate-800"></span>
                             </div>
                         </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                            <div>
+                                <span class="font-medium text-slate-600 block mb-2">Time In Photo:</span>
+                                <div id="detailTimeInPhoto" class="text-slate-800">
+                                    <span class="text-slate-400">No photo available</span>
+                                </div>
+                            </div>
+                            <div>
+                                <span class="font-medium text-slate-600 block mb-2">Time Out Photo:</span>
+                                <div id="detailTimeOutPhoto" class="text-slate-800">
+                                    <span class="text-slate-400">No photo available</span>
+                                </div>
+                            </div>
+                        </div>
                         <div class="mb-4">
                             <label for="remarksText" class="form-label">Remarks (optional):</label>
                             <textarea id="remarksText" class="form-control" rows="3" placeholder="Enter any remarks or notes about this DTR record"></textarea>
@@ -183,6 +199,26 @@
                             </button>
                         </div>
                     </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Photo View Modal -->
+    <div id="photoViewModal" class="modal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 class="font-medium text-base mr-auto" id="photoModalTitle">Attendance Photo</h2>
+                    <button data-tw-dismiss="modal" class="btn btn-outline-secondary hidden sm:flex">
+                        <i data-lucide="x" class="w-4 h-4"></i>
+                    </button>
+                </div>
+                <div class="modal-body p-5 text-center">
+                    <img id="photoViewImage" src="" alt="Attendance Photo" style="max-width: 100%; border-radius: 8px;">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" data-tw-dismiss="modal" class="btn btn-secondary w-20">Close</button>
                 </div>
             </div>
         </div>
@@ -244,7 +280,9 @@
                             office: dtr.office,
                             date: dtr.date,
                             timeIn: dtr.time_in,
+                            timeInPhoto: dtr.time_in_photo || null,
                             timeOut: dtr.time_out,
+                            timeOutPhoto: dtr.time_out_photo || null,
                             status: dtr.status,
                             review_status: dtr.review_status,
                             remarks: dtr.remarks,
@@ -318,7 +356,7 @@
             // Render the DTR table
             function renderTable() {
                 if (filteredData.length === 0) {
-                    dtrTableBody.innerHTML = '<tr><td colspan="9" class="text-center text-slate-500">No DTR records found</td></tr>';
+                    dtrTableBody.innerHTML = '<tr><td colspan="11" class="text-center text-slate-500">No DTR records found</td></tr>';
                     reloadLucideIcons();
                     return;
                 }
@@ -330,8 +368,22 @@
                         <td>${dtr.studentId || 'N/A'}</td>
                         <td>${dtr.office || 'N/A'}</td>
                         <td>${formatDate(dtr.date)}</td>
-                        <td>${dtr.timeIn}</td>
-                        <td>${dtr.timeOut}</td>
+                        <td>${dtr.timeIn || '—'}</td>
+                        <td>
+                            ${dtr.timeInPhoto ? 
+                                `<button class="btn btn-sm btn-outline-primary" onclick="viewPhoto('${dtr.timeInPhoto}', 'Time In Photo - ${formatDate(dtr.date)}')">
+                                    <i data-lucide="image" class="w-4 h-4 mr-1"></i> View
+                                </button>` 
+                                : '<span class="text-slate-400">—</span>'}
+                        </td>
+                        <td>${dtr.timeOut || '—'}</td>
+                        <td>
+                            ${dtr.timeOutPhoto ? 
+                                `<button class="btn btn-sm btn-outline-primary" onclick="viewPhoto('${dtr.timeOutPhoto}', 'Time Out Photo - ${formatDate(dtr.date)}')">
+                                    <i data-lucide="image" class="w-4 h-4 mr-1"></i> View
+                                </button>` 
+                                : '<span class="text-slate-400">—</span>'}
+                        </td>
                         <td>
                             <span class="badge ${getStatusBadgeClass(dtr.status)} text-white rounded p-1">${dtr.status}</span>
                             ${dtr.review_status && dtr.review_status !== 'Pending' ? 
@@ -419,10 +471,35 @@
                 document.getElementById('detailName').textContent = dtr.name;
                 document.getElementById('detailOffice').textContent = dtr.office || 'N/A';
                 document.getElementById('detailDate').textContent = formatDate(dtr.date);
-                document.getElementById('detailTimeIn').textContent = dtr.timeIn;
-                document.getElementById('detailTimeOut').textContent = dtr.timeOut;
+                document.getElementById('detailTimeIn').textContent = dtr.timeIn || '—';
+                document.getElementById('detailTimeOut').textContent = dtr.timeOut || '—';
                 document.getElementById('detailStatus').textContent = dtr.status;
                 document.getElementById('remarksText').value = dtr.remarks || '';
+                
+                // Populate photos
+                const timeInPhotoDiv = document.getElementById('detailTimeInPhoto');
+                if (dtr.timeInPhoto) {
+                    const photoUrl = dtr.timeInPhoto.startsWith('http') ? dtr.timeInPhoto : `/storage/${dtr.timeInPhoto}`;
+                    timeInPhotoDiv.innerHTML = `
+                        <button class="btn btn-sm btn-outline-primary" onclick="viewPhoto('${dtr.timeInPhoto}', 'Time In Photo - ${formatDate(dtr.date)}')">
+                            <i data-lucide="image" class="w-4 h-4 mr-1"></i> View Photo
+                        </button>
+                    `;
+                } else {
+                    timeInPhotoDiv.innerHTML = '<span class="text-slate-400">No photo available</span>';
+                }
+                
+                const timeOutPhotoDiv = document.getElementById('detailTimeOutPhoto');
+                if (dtr.timeOutPhoto) {
+                    const photoUrl = dtr.timeOutPhoto.startsWith('http') ? dtr.timeOutPhoto : `/storage/${dtr.timeOutPhoto}`;
+                    timeOutPhotoDiv.innerHTML = `
+                        <button class="btn btn-sm btn-outline-primary" onclick="viewPhoto('${dtr.timeOutPhoto}', 'Time Out Photo - ${formatDate(dtr.date)}')">
+                            <i data-lucide="image" class="w-4 h-4 mr-1"></i> View Photo
+                        </button>
+                    `;
+                } else {
+                    timeOutPhotoDiv.innerHTML = '<span class="text-slate-400">No photo available</span>';
+                }
 
                 // Show/hide action buttons based on review status
                 const approveBtn = dtrDetailsPanel.querySelector('button[onclick*="Approved"]');
@@ -779,6 +856,43 @@
                     messageDiv.remove();
                 }, 3000);
             }
+
+            // View photo function (global scope for onclick)
+            window.viewPhoto = function(photoPath, title) {
+                const modalEl = document.getElementById('photoViewModal');
+                const photoImage = document.getElementById('photoViewImage');
+                const photoTitle = document.getElementById('photoModalTitle');
+                
+                if (!modalEl || !photoImage) return;
+                
+                // Build photo URL
+                let photoUrl = photoPath;
+                if (!photoPath.startsWith('http') && !photoPath.startsWith('/')) {
+                    photoUrl = `/storage/${photoPath}`;
+                } else if (!photoPath.startsWith('http')) {
+                    photoUrl = photoPath;
+                }
+                
+                photoImage.src = photoUrl;
+                photoImage.alt = title || 'Attendance Photo';
+                photoTitle.textContent = title || 'Attendance Photo';
+                
+                // Show modal using Tailwind modal system
+                if (window.tailwind && window.tailwind.Modal && typeof window.tailwind.Modal.getOrCreateInstance === 'function') {
+                    const modal = tailwind.Modal.getOrCreateInstance(modalEl);
+                    modal.show();
+                } else if (window.$ && window.$.fn.modal) {
+                    // Fallback to jQuery modal if available
+                    $(modalEl).modal('show');
+                } else {
+                    // Simple fallback
+                    modalEl.style.display = 'block';
+                    modalEl.classList.add('show');
+                    document.body.classList.add('modal-open');
+                }
+                
+                reloadLucideIcons();
+            };
 
             // Reload Lucide icons
             function reloadLucideIcons() {

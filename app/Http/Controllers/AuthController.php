@@ -61,6 +61,99 @@ class AuthController extends Controller
                 'message' => 'Invalid password.'
             ], 401);
         }
+        // 6.751149763924785, 125.35272821270365 sa CJC
+        // 6.7561110397199915, 125.35915687266676 samong balay
+        // 6.642508532651743, 125.34272271225116 samong legit na balay 
+    // 6.756111484588946, 125.35907044729782
+    //6.749561718048088, 125.35485563531775 la miggy
+       // 6.757634529179423, 125.35345807583727 Grand Mall
+        // Geofencing check for Student Assistants only
+        // TODO: Re-enable geofencing when location detection is fixed
+        
+        if ($user->role === 'Student Assistant') {
+            $schoolLatitude = 6.642508532651743;
+            $schoolLongitude = 125.34272271225116;
+            $allowedRadius = 350000000000; // meters
+
+            // Get location from requestage
+            $latitude = $request->input('latitude');
+            $longitude = $request->input('longitude');
+
+            // Check if location is provided and valid
+            if ($latitude === null || $longitude === null || 
+                !is_numeric($latitude) || !is_numeric($longitude)) {
+                \Log::warning('Login attempt without valid location', [
+                    'user_id' => $user->id,
+                    'email' => $user->email,
+                    'latitude' => $latitude,
+                    'longitude' => $longitude
+                ]);
+                return response()->json([
+                    'message' => 'Location access is required for Student Assistants. Please enable location services and try again.',
+                    'debug' => [
+                        'latitude_received' => $latitude,
+                        'longitude_received' => $longitude
+                    ]
+                ], 403);
+            }
+
+            // Validate coordinate ranges
+            if ($latitude < -90 || $latitude > 90 || $longitude < -180 || $longitude > 180) {
+                \Log::warning('Login attempt with invalid coordinates', [
+                    'user_id' => $user->id,
+                    'email' => $user->email,
+                    'latitude' => $latitude,
+                    'longitude' => $longitude
+                ]);
+                return response()->json([
+                    'message' => 'Invalid location coordinates. Please try again.',
+                    'debug' => [
+                        'latitude' => $latitude,
+                        'longitude' => $longitude
+                    ]
+                ], 403);
+            }
+
+            // Calculate distance from school
+            $distance = $this->calculateDistance(
+                (float) $latitude,
+                (float) $longitude,
+                $schoolLatitude,
+                $schoolLongitude
+            );
+
+            \Log::info('Login location check', [
+                'user_id' => $user->id,
+                'email' => $user->email,
+                'user_lat' => $latitude,
+                'user_lon' => $longitude,
+                'school_lat' => $schoolLatitude,
+                'school_lon' => $schoolLongitude,
+                'distance' => round($distance, 2),
+                'allowed_radius' => $allowedRadius,
+                'within_radius' => $distance <= $allowedRadius
+            ]);
+
+            // Check if user is within allowed radius
+            if ($distance > $allowedRadius) {
+                return response()->json([
+                    'message' => 'You are outside the campus area. Please be within 350 meters of the school to log in.',
+                    'distance' => round($distance, 2),
+                    'allowed_radius' => $allowedRadius,
+                    'debug' => [
+                        'your_location' => [
+                            'latitude' => $latitude,
+                            'longitude' => $longitude
+                        ],
+                        'school_location' => [
+                            'latitude' => $schoolLatitude,
+                            'longitude' => $schoolLongitude
+                        ]
+                    ]
+                ], 403);
+            }
+        }
+        
 
         // Login the user
         \Auth::login($user);
@@ -77,6 +170,32 @@ class AuthController extends Controller
             'success' => true,
             'redirect' => $redirect
         ]);
+    }
+
+    /**
+     * Calculate distance between two coordinates using Haversine formula.
+     * Returns distance in meters.
+     *
+     * @param float $lat1 Latitude of first point
+     * @param float $lon1 Longitude of first point
+     * @param float $lat2 Latitude of second point
+     * @param float $lon2 Longitude of second point
+     * @return float Distance in meters
+     */
+    private function calculateDistance($lat1, $lon1, $lat2, $lon2)
+    {
+        $earthRadius = 6371000; // Earth's radius in meters
+
+        $dLat = deg2rad($lat2 - $lat1);
+        $dLon = deg2rad($lon2 - $lon1);
+
+        $a = sin($dLat / 2) * sin($dLat / 2) +
+             cos(deg2rad($lat1)) * cos(deg2rad($lat2)) *
+             sin($dLon / 2) * sin($dLon / 2);
+
+        $c = 2 * atan2(sqrt($a), sqrt(1 - $a));
+
+        return $earthRadius * $c;
     }
 
     /**
@@ -436,22 +555,25 @@ class AuthController extends Controller
     /**
      * Get attendance records for office head's office.
      *
+     * @param \Illuminate\Http\Request $request
      * @return \Illuminate\Http\Response
      */
-    public function getOfficeAttendances()
+    public function getOfficeAttendances(\Illuminate\Http\Request $request)
     {
         $user = \Auth::user();
         
-        if (!$user || $user->role !== 'Office Head') {
+        if (!$user || !in_array($user->role, ['Office Head', 'HR'])) {
             return response()->json([
                 'success' => false,
-                'message' => 'Unauthorized. Only Office Heads can access this.'
+                'message' => 'Unauthorized. Only Office Heads and HR can access this.'
             ], 403);
         }
 
+        // Get office information - try office_id first, fall back to office name
+        $officeId = $user->office_id;
         $office = $user->office;
         
-        if (!$office) {
+        if (!$officeId && !$office) {
             return response()->json([
                 'success' => false,
                 'message' => 'No office assigned to your account.'
@@ -459,9 +581,48 @@ class AuthController extends Controller
         }
 
         try {
-            $attendances = \App\Models\Attendance::where('office', $office)
-                ->with('user')
-                ->orderBy('date', 'desc')
+            // Get date filter if provided
+            $date = $request->get('date', now('Asia/Manila')->toDateString());
+            
+            // Get attendance records for the office, filtered by date and ensure user belongs to office
+            // Check both office_id and office name to catch all SAs
+            $attendancesQuery = \App\Models\Attendance::whereDate('date', $date);
+            
+            if ($officeId && \Schema::hasColumn('users', 'office_id')) {
+                // Use office_id if available, but also check office name for backward compatibility
+                $attendancesQuery->where(function($q) use ($officeId, $office) {
+                    $q->where('office', $office)
+                      ->orWhereHas('user', function($userQuery) use ($officeId, $office) {
+                          $userQuery->where('role', 'Student Assistant')
+                                    ->where(function($uq) use ($officeId, $office) {
+                                        if ($officeId) {
+                                            $uq->where('office_id', $officeId);
+                                        }
+                                        $uq->orWhereRaw('LOWER(TRIM(office)) = LOWER(TRIM(?))', [$office]);
+                                    });
+                      });
+                });
+            } else {
+                // Fall back to office name only
+                $attendancesQuery->where('office', $office)
+                    ->whereHas('user', function($query) use ($office) {
+                        $query->where('role', 'Student Assistant')
+                              ->where('office', $office);
+                    });
+            }
+            
+            $attendances = $attendancesQuery
+                ->with(['user' => function($query) use ($officeId, $office) {
+                    $query->where('role', 'Student Assistant');
+                    if ($officeId && \Schema::hasColumn('users', 'office_id')) {
+                        $query->where(function($q) use ($officeId, $office) {
+                            $q->where('office_id', $officeId)
+                              ->orWhereRaw('LOWER(TRIM(office)) = LOWER(TRIM(?))', [$office]);
+                        });
+                    } else {
+                        $query->where('office', $office);
+                    }
+                }])
                 ->orderBy('created_at', 'desc')
                 ->get();
 
@@ -488,10 +649,22 @@ class AuthController extends Controller
                     }
                 }
 
+                // Get photo URLs
+                $timeInPhotoUrl = null;
+                if ($attendance->time_in_photo) {
+                    $timeInPhotoUrl = asset('storage/' . $attendance->time_in_photo);
+                }
+                
+                $timeOutPhotoUrl = null;
+                if ($attendance->time_out_photo) {
+                    $timeOutPhotoUrl = asset('storage/' . $attendance->time_out_photo);
+                }
+
                 return [
                     'id' => $attendance->id,
-                    'name' => $attendance->name,
-                    'student_id' => $attendance->student_id_number,
+                    'user_id' => $attendance->user_id,
+                    'name' => $attendance->user ? ($attendance->user->full_name ?? $attendance->user->name) : $attendance->name,
+                    'student_id' => $attendance->user ? ($attendance->user->student_id_number ?? null) : $attendance->student_id_number,
                     'office' => $attendance->office,
                     'date' => $dateString,
                     'formatted_date' => $attendance->date->format('M d, Y'),
@@ -501,13 +674,65 @@ class AuthController extends Controller
                     'review_status' => $attendance->review_status ?? 'Pending',
                     'remarks' => $attendance->remarks,
                     'pending' => ($attendance->review_status === null || $attendance->review_status === 'Pending'),
+                    'has_overtime_approval' => $attendance->has_overtime_approval ?? false,
+                    'time_in_photo' => $timeInPhotoUrl,
+                    'time_out_photo' => $timeOutPhotoUrl,
                 ];
             });
 
+            // Group by user_id to show one row per student assistant
+            $groupedData = [];
+            foreach ($data as $record) {
+                $userId = $record['user_id'];
+                if (!isset($groupedData[$userId])) {
+                    $groupedData[$userId] = [
+                        'user_id' => $userId,
+                        'name' => $record['name'],
+                        'student_id' => $record['student_id'],
+                        'office' => $record['office'],
+                        'sessions' => [],
+                        'total_time' => 0,
+                        'status' => 'Absent',
+                        'has_attendance' => false,
+                    ];
+                }
+                
+                // Add session if there's time in
+                if ($record['time_in'] !== '--') {
+                    $groupedData[$userId]['has_attendance'] = true;
+                    $groupedData[$userId]['status'] = $record['status'] ?? 'Present';
+                    $groupedData[$userId]['sessions'][] = [
+                        'id' => $record['id'],
+                        'time_in' => $record['time_in'],
+                        'time_out' => $record['time_out'],
+                        'status' => $record['status'],
+                        'review_status' => $record['review_status'],
+                        'has_overtime_approval' => $record['has_overtime_approval'],
+                    ];
+                }
+            }
+            
+            // Convert to array and calculate total time for each student
+            $finalData = array_values($groupedData);
+            foreach ($finalData as &$student) {
+                if (count($student['sessions']) > 0) {
+                    // Get the latest session for display
+                    $latestSession = $student['sessions'][0];
+                    $student['time_in'] = $latestSession['time_in'];
+                    $student['time_out'] = $latestSession['time_out'];
+                    $student['session_count'] = count($student['sessions']);
+                } else {
+                    $student['time_in'] = '--';
+                    $student['time_out'] = '--';
+                    $student['session_count'] = 0;
+                }
+            }
+
             return response()->json([
                 'success' => true,
-                'data' => $data,
-                'office' => $office
+                'data' => $finalData,
+                'office' => $office,
+                'date' => $date
             ]);
         } catch (\Exception $e) {
             \Log::error('Error loading office attendances: ' . $e->getMessage());
@@ -609,25 +834,32 @@ class AuthController extends Controller
      */
     public function submitEvaluation(\Illuminate\Http\Request $request)
     {
-        $request->validate([
-            'studentName' => 'required|string|max:255',
-            'natureOfWork' => 'required|string|max:255',
-            'office' => 'required|string|max:255',
-            'rate1' => 'required|integer|min:1|max:10',
-            'rate2' => 'required|integer|min:1|max:10',
-            'rate3' => 'required|integer|min:1|max:10',
-            'rate4' => 'required|integer|min:1|max:10',
-            'rate5' => 'required|integer|min:1|max:10',
-            'rate6' => 'required|integer|min:1|max:10',
-            'rate7' => 'required|integer|min:1|max:10',
-            'rate8' => 'required|integer|min:1|max:10',
-            'rate9' => 'required|integer|min:1|max:10',
-            'rate10' => 'required|integer|min:1|max:10',
-            'comments' => 'nullable|string|max:1000',
-            'date' => 'required|date',
-            'ratedBy' => 'required|string|max:255',
-            'head' => 'required|string|max:255'
-        ]);
+        try {
+            $request->validate([
+                'studentName' => 'required|string|max:255',
+                'office' => 'required|string|max:255',
+                'rate1' => 'required|integer|min:1|max:10',
+                'rate2' => 'required|integer|min:1|max:10',
+                'rate3' => 'required|integer|min:1|max:10',
+                'rate4' => 'required|integer|min:1|max:10',
+                'rate5' => 'required|integer|min:1|max:10',
+                'rate6' => 'required|integer|min:1|max:10',
+                'rate7' => 'required|integer|min:1|max:10',
+                'rate8' => 'required|integer|min:1|max:10',
+                'rate9' => 'required|integer|min:1|max:10',
+                'rate10' => 'required|integer|min:1|max:10',
+                'comments' => 'nullable|string|max:1000',
+                'date' => 'required|date',
+                'ratedBy' => 'required|string|max:255',
+                'head' => 'required|string|max:255'
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed. Please check your input.',
+                'errors' => $e->errors()
+            ], 422);
+        }
 
         // In a real implementation, you would:
         // 1. Create an evaluation record in the database
@@ -650,37 +882,65 @@ class AuthController extends Controller
                 ->first();
         }
 
-        $evaluation = \App\Models\Evaluation::create([
-            'evaluator_id' => $user->id,
-            'student_assistant_id' => $studentAssistant ? $studentAssistant->id : null,
-            'student_name' => $request->studentName,
-            'nature_of_work' => $request->natureOfWork,
-            'office' => $request->office,
-            'rate1' => $request->rate1,
-            'rate2' => $request->rate2,
-            'rate3' => $request->rate3,
-            'rate4' => $request->rate4,
-            'rate5' => $request->rate5,
-            'rate6' => $request->rate6,
-            'rate7' => $request->rate7,
-            'rate8' => $request->rate8,
-            'rate9' => $request->rate9,
-            'rate10' => $request->rate10,
-            'total_score' => $request->totalScore,
-            'average_score' => $request->averageScore,
-            'overall_rating' => $request->overallRating,
-            'comments' => $request->comments,
-            'evaluation_date' => $request->date,
-            'rated_by' => $request->ratedBy,
-            'head_of_office' => $request->head,
-            'status' => 'Pending',
-        ]);
+        // Get current criteria questions from settings or use default
+        $criteriaQuestions = [];
+        if ($request->has('criteriaQuestions') && is_array($request->criteriaQuestions)) {
+            $criteriaQuestions = $request->criteriaQuestions;
+        } else {
+            // Get default questions from settings
+            $criteriaSettings = \App\Models\EvaluationCriteriaSetting::where('is_active', true)
+                ->orderBy('order')
+                ->get();
+            foreach ($criteriaSettings as $setting) {
+                $criteriaQuestions[$setting->criterion_key] = $setting->question_text;
+            }
+        }
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Evaluation submitted successfully!',
-            'data' => $evaluation
-        ]);
+        try {
+            $evaluation = \App\Models\Evaluation::create([
+                'evaluator_id' => $user->id,
+                'student_assistant_id' => $studentAssistant ? $studentAssistant->id : null,
+                'student_name' => $request->studentName,
+                'nature_of_work' => $request->natureOfWork ?? 'N/A', // Default value since field was removed from form
+                'office' => $request->office,
+                'rate1' => $request->rate1,
+                'rate2' => $request->rate2,
+                'rate3' => $request->rate3,
+                'rate4' => $request->rate4,
+                'rate5' => $request->rate5,
+                'rate6' => $request->rate6,
+                'rate7' => $request->rate7,
+                'rate8' => $request->rate8,
+                'rate9' => $request->rate9,
+                'rate10' => $request->rate10,
+                'total_score' => $request->totalScore,
+                'average_score' => $request->averageScore,
+                'overall_rating' => $request->overallRating,
+                'comments' => $request->comments,
+                'evaluation_date' => $request->date,
+                'rated_by' => $request->ratedBy,
+                'head_of_office' => $request->head,
+                'status' => 'Pending',
+                'criteria_questions' => $criteriaQuestions,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Evaluation submitted successfully!',
+                'data' => $evaluation
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Error submitting evaluation: ' . $e->getMessage(), [
+                'user_id' => $user->id ?? null,
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to submit evaluation: ' . $e->getMessage(),
+                'error' => config('app.debug') ? $e->getMessage() : 'An error occurred while submitting the evaluation.'
+            ], 500);
+        }
     }
 
     /**
@@ -711,44 +971,58 @@ class AuthController extends Controller
                         $query->where('evaluator_id', $user->id)
                               ->orWhere('office', $user->office);
                     })
-                    ->orderBy('evaluation_date', 'desc')
-                    ->orderBy('created_at', 'desc')
-                    ->get();
+            ->orderBy('evaluation_date', 'desc')
+            ->orderBy('created_at', 'desc')
+            ->get();
             }
 
-            $data = $evaluations->map(function ($evaluation) {
-                return [
-                    'id' => $evaluation->id,
-                    'student_name' => $evaluation->student_name,
-                    'nature_of_work' => $evaluation->nature_of_work,
-                    'office' => $evaluation->office,
-                    'total_score' => $evaluation->total_score,
-                    'average_score' => $evaluation->average_score,
-                    'overall_rating' => $evaluation->overall_rating,
-                    'evaluation_date' => $evaluation->evaluation_date ? $evaluation->evaluation_date->format('Y-m-d') : null,
-                    'formatted_date' => $evaluation->evaluation_date ? $evaluation->evaluation_date->format('M d, Y') : 'N/A',
-                    'rated_by' => $evaluation->rated_by,
-                    'head_of_office' => $evaluation->head_of_office,
-                    'status' => $evaluation->status,
-                    'created_at' => $evaluation->created_at ? $evaluation->created_at->format('Y-m-d H:i:s') : null,
-                    'rate1' => $evaluation->rate1,
-                    'rate2' => $evaluation->rate2,
-                    'rate3' => $evaluation->rate3,
-                    'rate4' => $evaluation->rate4,
-                    'rate5' => $evaluation->rate5,
-                    'rate6' => $evaluation->rate6,
-                    'rate7' => $evaluation->rate7,
-                    'rate8' => $evaluation->rate8,
-                    'rate9' => $evaluation->rate9,
-                    'rate10' => $evaluation->rate10,
-                    'comments' => $evaluation->comments,
-                ];
-            });
+        $data = $evaluations->map(function ($evaluation) {
+            // Get student assistant info if available
+            $studentId = null;
+            if ($evaluation->student_assistant_id) {
+                $studentAssistant = \App\Models\User::find($evaluation->student_assistant_id);
+                if ($studentAssistant) {
+                    $studentId = $studentAssistant->student_id_number;
+                }
+            }
+            
+            return [
+                'id' => $evaluation->id,
+                'student_name' => $evaluation->student_name,
+                'student_id_number' => $studentId,
+                'student_assistant_id' => $evaluation->student_assistant_id,
+                'nature_of_work' => $evaluation->nature_of_work,
+                'office' => $evaluation->office,
+                'total_score' => $evaluation->total_score,
+                'average_score' => $evaluation->average_score,
+                'overall_rating' => $evaluation->overall_rating,
+                'evaluation_date' => $evaluation->evaluation_date ? $evaluation->evaluation_date->format('Y-m-d') : null,
+                'formatted_date' => $evaluation->evaluation_date ? $evaluation->evaluation_date->format('M d, Y') : 'N/A',
+                'rated_by' => $evaluation->rated_by,
+                'head_of_office' => $evaluation->head_of_office,
+                'status' => $evaluation->status,
+                'created_at' => $evaluation->created_at ? $evaluation->created_at->format('Y-m-d H:i:s') : null,
+                'rate1' => $evaluation->rate1,
+                'rate2' => $evaluation->rate2,
+                'rate3' => $evaluation->rate3,
+                'rate4' => $evaluation->rate4,
+                'rate5' => $evaluation->rate5,
+                'rate6' => $evaluation->rate6,
+                'rate7' => $evaluation->rate7,
+                'rate8' => $evaluation->rate8,
+                'rate9' => $evaluation->rate9,
+                'rate10' => $evaluation->rate10,
+                'comments' => $evaluation->comments,
+                'hr_rating' => $evaluation->hr_rating ?? null,
+                'hr_comments' => $evaluation->hr_comments ?? null,
+                'criteria_questions' => $evaluation->criteria_questions ?? null,
+            ];
+        });
 
-            return response()->json([
-                'success' => true,
-                'data' => $data
-            ]);
+        return response()->json([
+            'success' => true,
+            'data' => $data
+        ]);
         } catch (\Exception $e) {
             \Log::error('Error getting evaluations: ' . $e->getMessage(), [
                 'user_id' => $user->id,
@@ -778,72 +1052,101 @@ class AuthController extends Controller
             ], 403);
         }
 
-        // TEMPORARY: Return sample data for testing charts
-        // Remove or comment out the return statement below to use real database data
-        $office = $user->office;
-        
-        $sampleData = [
-            'success' => true,
-            'data' => [
-                'sa_by_office' => $user->role === 'HR' ? [
-                    ['office' => 'Registrar', 'count' => 15],
-                    ['office' => 'Library', 'count' => 12],
-                    ['office' => 'Guidance', 'count' => 8],
-                    ['office' => 'Clinic', 'count' => 6],
-                    ['office' => 'IT', 'count' => 10],
-                ] : ($office ? [['office' => $office, 'count' => 8]] : [['office' => 'N/A', 'count' => 0]]),
-                'attendance_today' => 35,
-                'attendance_this_week' => 180,
-                'attendance_by_month' => [
-                    ['month' => 'Jul', 'count' => 420],
-                    ['month' => 'Aug', 'count' => 485],
-                    ['month' => 'Sep', 'count' => 510],
-                    ['month' => 'Oct', 'count' => 495],
-                    ['month' => 'Nov', 'count' => 520],
-                    ['month' => 'Dec', 'count' => 480],
-                ],
-                'attendance_by_week' => [
-                    ['week' => 'Mon', 'count' => 45],
-                    ['week' => 'Tue', 'count' => 52],
-                    ['week' => 'Wed', 'count' => 48],
-                    ['week' => 'Thu', 'count' => 50],
-                    ['week' => 'Fri', 'count' => 47],
-                    ['week' => 'Sat', 'count' => 12],
-                    ['week' => 'Sun', 'count' => 8],
-                ],
-                'status_breakdown' => [
-                    'Present' => 28,
-                    'Late' => 7,
-                    'Absent' => 8,
-                    'Completed' => 22,
-                    'Incomplete' => 13,
-                ]
-            ]
-        ];
-        
-        // Return sample data for testing (comment out the return statement below to use real database data)
-        return response()->json($sampleData);
-
-        /* COMMENT OUT ABOVE RETURN STATEMENT TO USE REAL DATABASE DATA BELOW
+        // Use real database data
         try {
-            $office = $user->office;
+            // Get office information - try office_id first, fall back to office name
+            $officeId = $user->office_id;
+            $office = null;
+            
+            if ($officeId) {
+                // Use office relationship if office_id exists
+                $officeRelation = $user->officeRelation;
+                $office = $officeRelation ? $officeRelation->name : $user->office;
+            } else {
+                // Fall back to office name column and try to find office_id
+                $office = $user->office;
+                if ($office) {
+                    $officeModel = \App\Models\Office::where('name', $office)->first();
+                    if ($officeModel) {
+                        $officeId = $officeModel->id;
+                        // Update user's office_id if it was null
+                        if (\Schema::hasColumn('users', 'office_id')) {
+                            $user->update(['office_id' => $officeId]);
+                        }
+                    }
+                }
+            }
             
             // Student Assistants by Department/Office
             $saByOffice = [];
             if ($user->role === 'HR') {
-                $saByOffice = \App\Models\User::where('role', 'Student Assistant')
-                    ->whereNotNull('office')
-                    ->selectRaw('office, COUNT(*) as count')
-                    ->groupBy('office')
-                    ->orderBy('count', 'desc')
-                    ->get()
-                    ->map(function($item) {
-                        return [
-                            'office' => $item->office,
-                            'count' => (int)$item->count
-                        ];
-                    })
-                    ->toArray();
+                // Check if office_id column exists
+                if (\Schema::hasColumn('users', 'office_id')) {
+                    $query = \App\Models\User::where('role', 'Student Assistant')
+                        ->where(function($q) {
+                            $q->whereNotNull('office_id')
+                              ->orWhereNotNull('office');
+                        })
+                        ->with('officeRelation');
+                } else {
+                    // Fallback if office_id column doesn't exist yet
+                    $query = \App\Models\User::where('role', 'Student Assistant')
+                        ->whereNotNull('office');
+                }
+                
+                // Check if status column exists before filtering
+                if (\Schema::hasColumn('users', 'status')) {
+                    $query->where(function($q) {
+                        $q->whereIn('status', ['Active', 'Apprentice'])
+                          ->orWhereNull('status');
+                    });
+                } else {
+                    // Use active column if status doesn't exist
+                    $query->where('active', 1);
+                }
+                
+                if (\Schema::hasColumn('users', 'office_id')) {
+                    $saByOffice = $query
+                        ->get()
+                        ->groupBy(function($user) {
+                            return $user->office_id ?? 'office_' . $user->office;
+                        })
+                        ->map(function($group) {
+                            $firstUser = $group->first();
+                            $officeName = null;
+                            
+                            if ($firstUser->officeRelation) {
+                                $officeName = $firstUser->officeRelation->name;
+                            } elseif ($firstUser->office) {
+                                $officeName = $firstUser->office;
+                            } else {
+                                $officeName = 'Unknown';
+                            }
+                            
+                            return [
+                                'office' => $officeName,
+                                'count' => $group->count()
+                            ];
+                        })
+                        ->values()
+                        ->sortByDesc('count')
+                        ->values()
+                        ->toArray();
+                } else {
+                    // Fallback: group by office name
+                    $saByOffice = $query
+                        ->selectRaw('office, COUNT(*) as count')
+                        ->groupBy('office')
+                        ->orderBy('count', 'desc')
+                        ->get()
+                        ->map(function($item) {
+                            return [
+                                'office' => $item->office,
+                                'count' => (int)$item->count
+                            ];
+                        })
+                        ->toArray();
+                }
             } else {
                 // Office Head sees only their office
                 if (!$office) {
@@ -852,9 +1155,28 @@ class AuthController extends Controller
                         'message' => 'No office assigned to your account.'
                     ], 422);
                 }
-                $count = \App\Models\User::where('role', 'Student Assistant')
-                    ->where('office', $office)
-                    ->count();
+                
+                $query = \App\Models\User::where('role', 'Student Assistant');
+                
+                // Use office_id if available, otherwise use office name
+                if ($officeId && \Schema::hasColumn('users', 'office_id')) {
+                    $query->where('office_id', $officeId);
+                } else {
+                    $query->where('office', $office);
+                }
+                
+                // Check if status column exists before filtering
+                if (\Schema::hasColumn('users', 'status')) {
+                    $query->where(function($q) {
+                        $q->whereIn('status', ['Active', 'Apprentice'])
+                          ->orWhereNull('status');
+                    });
+                } else {
+                    // Use active column if status doesn't exist
+                    $query->where('active', 1);
+                }
+                
+                $count = $query->count();
                 $saByOffice = [['office' => $office, 'count' => $count]];
             }
 
@@ -898,42 +1220,104 @@ class AuthController extends Controller
             }
 
             // Attendance Status Breakdown
-            $statusQuery = clone $baseQuery;
-            $statusBreakdown = $statusQuery
-                ->whereDate('date', $today)
-                ->selectRaw('COALESCE(status, "Unknown") as status, COUNT(*) as count')
-                ->groupBy('status')
-                ->get();
-
-            $statusBreakdownMap = $statusBreakdown->pluck('count', 'status');
-
             $statusData = [
-                'Present' => (int)($statusBreakdownMap->get('Present') ?? 0),
-                'Late' => (int)($statusBreakdownMap->get('Late') ?? 0),
+                'Present' => 0,
+                'Late' => 0,
                 'Absent' => 0,
-                'Completed' => (int)($statusBreakdownMap->get('Completed') ?? 0),
-                'Incomplete' => (int)($statusBreakdownMap->get('Incomplete') ?? 0),
+                'Completed' => 0,
+                'Incomplete' => 0,
             ];
+            
+            try {
+                $statusQuery = clone $baseQuery;
+                $statusBreakdown = $statusQuery
+                    ->whereDate('date', $today)
+                    ->get()
+                    ->groupBy('status')
+                    ->map(function($group) {
+                        return $group->count();
+                    });
+                
+                foreach ($statusBreakdown as $status => $count) {
+                    $statusKey = $status ?? 'Unknown';
+                    if (isset($statusData[$statusKey])) {
+                        $statusData[$statusKey] = (int)$count;
+                    }
+                }
+            } catch (\Exception $e) {
+                \Log::warning('Error getting status breakdown, using defaults: ' . $e->getMessage());
+            }
 
             // Calculate absent: Total SAs in office - (Present + Late)
-            $totalSAsQuery = \App\Models\User::where('role', 'Student Assistant')
-                ->where(function($query) {
+            $totalSAsQuery = \App\Models\User::where('role', 'Student Assistant');
+            
+            // Check if status column exists before filtering
+            if (\Schema::hasColumn('users', 'status')) {
+                $totalSAsQuery->where(function($query) {
                     $query->whereIn('status', ['Active', 'Apprentice'])
                           ->orWhereNull('status');
                 });
+            } else {
+                // Use active column if status doesn't exist
+                $totalSAsQuery->where('active', 1);
+            }
             
             if ($user->role === 'Office Head' && $office) {
-                $totalSAsQuery->where('office', $office);
+                if ($officeId && \Schema::hasColumn('users', 'office_id')) {
+                    $totalSAsQuery->where('office_id', $officeId);
+                } else {
+                    $totalSAsQuery->where('office', $office);
+                }
             }
             
             $totalSAs = $totalSAsQuery->count();
             
             $statusData['Absent'] = max(0, $totalSAs - $statusData['Present'] - $statusData['Late']);
 
+            // Student Assistants Added by Month
+            $saByMonth = [];
+            $saQuery = \App\Models\User::where('role', 'Student Assistant');
+            
+            // Check if status column exists before filtering
+            if (\Schema::hasColumn('users', 'status')) {
+                $saQuery->where(function($q) {
+                    $q->whereIn('status', ['Active', 'Apprentice'])
+                      ->orWhereNull('status');
+                });
+            } else {
+                // Use active column if status doesn't exist
+                $saQuery->where('active', 1);
+            }
+            
+            if ($user->role === 'Office Head' && $office) {
+                if ($officeId && \Schema::hasColumn('users', 'office_id')) {
+                    $saQuery->where('office_id', $officeId);
+                } else {
+                    $saQuery->where('office', $office);
+                }
+            }
+            
+            // Get last 6 months
+            for ($i = 5; $i >= 0; $i--) {
+                $month = $now->copy()->subMonths($i);
+                $monthStart = $month->copy()->startOfMonth()->toDateString();
+                $monthEnd = $month->copy()->endOfMonth()->toDateString();
+                
+                $monthCount = (clone $saQuery)
+                    ->whereBetween('created_at', [$monthStart . ' 00:00:00', $monthEnd . ' 23:59:59'])
+                    ->count();
+                
+                $saByMonth[] = [
+                    'month' => $month->format('M Y'),
+                    'count' => (int)$monthCount
+                ];
+            }
+
             return response()->json([
                 'success' => true,
                 'data' => [
                     'sa_by_office' => $saByOffice,
+                    'sa_by_month' => $saByMonth,
                     'attendance_today' => $attendanceToday,
                     'attendance_this_week' => $attendanceThisWeek,
                     'attendance_by_month' => $attendanceByMonth,
@@ -953,6 +1337,8 @@ class AuthController extends Controller
             \Log::error('Error getting analytics: ' . $e->getMessage(), [
                 'user_id' => $user->id ?? null,
                 'user_role' => $user->role ?? null,
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
                 'trace' => $e->getTraceAsString()
             ]);
             
@@ -962,12 +1348,11 @@ class AuthController extends Controller
                 'error_details' => config('app.debug') ? [
                     'file' => $e->getFile(),
                     'line' => $e->getLine(),
+                    'message' => $e->getMessage(),
                     'trace' => $e->getTraceAsString()
                 ] : null
             ], 500);
         }
-        */
-        // END OF COMMENT BLOCK - Comment out the return statement at line 825 to use real database data
     }
 
     /**
@@ -1056,20 +1441,28 @@ class AuthController extends Controller
     {
         $user = \Auth::user();
         
-        if (!$user || $user->role !== 'Office Head') {
+        if (!$user || !in_array($user->role, ['Office Head', 'HR'])) {
             return response()->json([
                 'success' => false,
-                'message' => 'Unauthorized. Only Office Heads can update evaluations.'
+                'message' => 'Unauthorized. Only Office Heads and HR can update evaluations.'
             ], 403);
         }
 
         $evaluation = \App\Models\Evaluation::find($id);
         
-        if (!$evaluation || $evaluation->evaluator_id !== $user->id) {
+        if (!$evaluation) {
             return response()->json([
                 'success' => false,
-                'message' => 'Evaluation not found or unauthorized.'
+                'message' => 'Evaluation not found.'
             ], 404);
+        }
+
+        // Office Head can only update their own evaluations, HR can update any
+        if ($user->role === 'Office Head' && $evaluation->evaluator_id !== $user->id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized. You can only update evaluations you created.'
+            ], 403);
         }
 
         $request->validate([
@@ -1118,6 +1511,12 @@ class AuthController extends Controller
             'head_of_office' => $request->head,
         ]);
 
+        // Update criteria questions if provided
+        if ($request->has('criteriaQuestions') && is_array($request->criteriaQuestions)) {
+            $evaluation->criteria_questions = $request->criteriaQuestions;
+            $evaluation->save();
+        }
+
         return response()->json([
             'success' => true,
             'message' => 'Evaluation updated successfully!',
@@ -1135,20 +1534,28 @@ class AuthController extends Controller
     {
         $user = \Auth::user();
         
-        if (!$user || $user->role !== 'Office Head') {
+        if (!$user || !in_array($user->role, ['Office Head', 'HR'])) {
             return response()->json([
                 'success' => false,
-                'message' => 'Unauthorized. Only Office Heads can delete evaluations.'
+                'message' => 'Unauthorized. Only Office Heads and HR can delete evaluations.'
             ], 403);
         }
 
         $evaluation = \App\Models\Evaluation::find($id);
         
-        if (!$evaluation || $evaluation->evaluator_id !== $user->id) {
+        if (!$evaluation) {
             return response()->json([
                 'success' => false,
-                'message' => 'Evaluation not found or unauthorized.'
+                'message' => 'Evaluation not found.'
             ], 404);
+        }
+
+        // Office Head can only delete their own evaluations, HR can delete any
+        if ($user->role === 'Office Head' && $evaluation->evaluator_id !== $user->id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized. You can only delete evaluations you created.'
+            ], 403);
         }
 
         $evaluation->delete();
@@ -1226,7 +1633,7 @@ class AuthController extends Controller
         }
 
         $request->validate([
-            'request_type' => 'required|string|max:255',
+            'request_type' => 'required|string|max:255|in:Schedule Adjustment,Change Office,Leave Request,Resignation,Overtime Request',
             'message' => 'required|string|max:2000',
         ]);
 
@@ -1257,6 +1664,98 @@ class AuthController extends Controller
                 'success' => false,
                 'message' => 'Failed to submit request.',
                 'error' => config('app.debug') ? $e->getMessage() : null
+            ], 500);
+        }
+    }
+
+    /**
+     * Create a new request from Office Head to HR asking for additional SAs (with quantity).
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return \Illuminate\Http\Response
+     */
+    public function createOfficeHeadSARequest(\Illuminate\Http\Request $request)
+    {
+        try {
+            $user = \Auth::user();
+
+            if (!$user || $user->role !== 'Office Head') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Unauthorized. Only Office Heads can create this request.'
+                ], 403);
+            }
+
+            if (!$user->office) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No office assigned to your account.'
+                ], 422);
+            }
+
+            // Validate request
+            $validated = $request->validate([
+                'quantity' => 'required|integer|min:1|max:50',
+                'message' => 'nullable|string|max:2000',
+            ]);
+
+            $qty = (int) $validated['quantity'];
+            $note = isset($validated['message']) ? trim((string) $validated['message']) : '';
+
+            // Store details in message so HR can review without a new DB column
+            $finalMessage = "Requesting {$qty} Student Assistant(s) for Office: {$user->office}.";
+            if ($note !== '') {
+                $finalMessage .= " Note: {$note}";
+            }
+
+            $newRequest = \App\Models\Request::create([
+                'user_id' => $user->id,                 // Office Head
+                'student_id_number' => null,            // Not applicable
+                'request_type' => 'SA Request',
+                'message' => $finalMessage,
+                'status' => 'Pending',
+            ]);
+
+            \Log::info('Office Head SA Request created', [
+                'request_id' => $newRequest->id,
+                'office_head_user_id' => $user->id,
+                'office' => $user->office,
+                'quantity' => $qty,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'SA request submitted successfully!',
+                'data' => [
+                    'id' => $newRequest->id,
+                    'request_type' => $newRequest->request_type,
+                    'message' => $newRequest->message,
+                    'status' => $newRequest->status,
+                    'created_at' => $newRequest->created_at->format('Y-m-d H:i:s'),
+                ]
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            \Log::warning('Validation error in Office Head SA request', [
+                'errors' => $e->errors(),
+                'user_id' => \Auth::id()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed. Please check your input.',
+                'errors' => $e->errors()
+            ], 422);
+        } catch (\Exception $e) {
+            \Log::error('Error creating Office Head SA request: ' . $e->getMessage(), [
+                'user_id' => \Auth::id(),
+                'office' => \Auth::user()->office ?? null,
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to submit SA request: ' . $e->getMessage(),
+                'error' => config('app.debug') ? $e->getMessage() : 'An error occurred while processing your request.'
             ], 500);
         }
     }
@@ -1530,17 +2029,17 @@ class AuthController extends Controller
             $defaultPassword = bcrypt('password123'); // Default password - should be changed on first login
             
             $studentAssistant = \App\Models\User::create([
-                'name' => $request->fullName,
-                'full_name' => $request->fullName,
-                'student_id_number' => $request->studentId,
-                'email' => $request->email,
-                'contact' => $request->contact,
-                'office' => $request->office,
-                'role' => 'Student Assistant',
-                'status' => $request->status,
+            'name' => $request->fullName,
+            'full_name' => $request->fullName,
+            'student_id_number' => $request->studentId,
+            'email' => $request->email,
+            'contact' => $request->contact,
+            'office' => $request->office,
+            'role' => 'Student Assistant',
+            'status' => $request->status,
                 'password' => $defaultPassword,
                 'password_hash' => $defaultPassword,
-                'gender' => 'Not Specified',
+            'gender' => 'Not Specified',
                 'active' => $request->status === 'Active' ? 1 : ($request->status === 'Apprentice' ? 1 : 0),
                 'email_verified_at' => now(),
             ]);
@@ -1548,9 +2047,9 @@ class AuthController extends Controller
             // Store service notes if provided (you may need to create a service_records table for this)
             // For now, we'll skip this as it's not in the users table
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Student assistant added successfully!',
+        return response()->json([
+            'success' => true,
+            'message' => 'Student assistant added successfully!',
                 'data' => [
                     'id' => $studentAssistant->id,
                     'name' => $studentAssistant->name,
@@ -1590,7 +2089,52 @@ class AuthController extends Controller
     }
 
     /**
-     * Upload contract.
+     * Get all contracts (student assistants with contract dates).
+     *
+     * @return \Illuminate\Http\Response
+     */
+    public function getContracts()
+    {
+        $studentAssistants = \App\Models\User::where('role', 'Student Assistant')
+            ->whereNotNull('contract_start_date')
+            ->whereNotNull('contract_end_date')
+            ->orderBy('contract_end_date', 'desc')
+            ->get();
+
+        $contracts = $studentAssistants->map(function ($sa) {
+            $today = now();
+            $startDate = \Carbon\Carbon::parse($sa->contract_start_date);
+            $endDate = \Carbon\Carbon::parse($sa->contract_end_date);
+            
+            // Determine contract status
+            $status = 'Active';
+            if ($today->lt($startDate)) {
+                $status = 'Pending';
+            } elseif ($today->gt($endDate)) {
+                $status = 'Expired';
+            }
+
+            return [
+                'id' => $sa->id,
+                'name' => $sa->full_name ?? $sa->name,
+                'studentId' => $sa->student_id_number,
+                'office' => $sa->office,
+                'startDate' => $sa->contract_start_date,
+                'endDate' => $sa->contract_end_date,
+                'status' => $status,
+                'uploadDate' => $sa->created_at->format('Y-m-d'),
+                'notes' => null, // Can be extended if needed
+            ];
+        });
+
+        return response()->json([
+            'success' => true,
+            'data' => $contracts
+        ]);
+    }
+
+    /**
+     * Upload/Update contract.
      *
      * @param  \Illuminate\Http\Request  $request
      * @return \Illuminate\Http\Response
@@ -1598,54 +2142,49 @@ class AuthController extends Controller
     public function uploadContract(\Illuminate\Http\Request $request)
     {
         $request->validate([
-            'uploadName' => 'required|string|max:255',
-            'uploadID' => 'required|string|max:255',
-            'uploadOffice' => 'required|string|max:255',
-            'contractType' => 'required|string|in:New,Renewal,Amendment',
+            'studentId' => 'required|string|max:255',
             'startDate' => 'required|date',
             'endDate' => 'required|date|after:startDate',
-            'pdfUpload' => 'required|file|mimes:pdf|max:10240', // 10MB max
-            'notes' => 'nullable|string|max:1000'
+            'pdfUpload' => 'nullable|file|mimes:pdf|max:10240', // 10MB max, optional
         ]);
 
-        // In a real implementation, you would:
-        // 1. Store the uploaded PDF file in a secure location
-        // 2. Create a contract record in the database
-        // 3. Link the contract to the student assistant
-        // 4. Send notifications to relevant parties
-        // 5. Generate contract reference numbers
+        // Find student assistant by student ID
+        $studentAssistant = \App\Models\User::where('role', 'Student Assistant')
+            ->where('student_id_number', $request->studentId)
+            ->first();
 
-        $contractData = [
-            'student_name' => $request->uploadName,
-            'student_id' => $request->uploadID,
-            'office' => $request->uploadOffice,
-            'contract_type' => $request->contractType,
-            'start_date' => $request->startDate,
-            'end_date' => $request->endDate,
-            'status' => 'Active',
-            'notes' => $request->notes,
-            'uploaded_by' => \Auth::id(),
-            'uploaded_at' => now()->toISOString(),
-            'file_path' => 'contracts/' . $request->uploadID . '-' . date('Y') . '.pdf'
-        ];
-
-        // Handle file upload
-        if ($request->hasFile('pdfUpload')) {
-            $file = $request->file('pdfUpload');
-            $fileName = $request->uploadID . '-' . date('Y-m-d') . '.' . $file->getClientOriginalExtension();
-            // In real implementation: $file->storeAs('contracts', $fileName);
-            $contractData['file_name'] = $fileName;
-            $contractData['file_size'] = $file->getSize();
+        if (!$studentAssistant) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Student assistant not found.'
+            ], 404);
         }
 
-        // For now, just return success
-        // In real implementation, save to database:
-        // Contract::create($contractData);
+        // Update contract dates
+        $studentAssistant->contract_start_date = $request->startDate;
+        $studentAssistant->contract_end_date = $request->endDate;
+        $studentAssistant->save();
+
+        // Handle file upload if provided
+        $filePath = null;
+        if ($request->hasFile('pdfUpload')) {
+            $file = $request->file('pdfUpload');
+            $fileName = $request->studentId . '-' . date('Y-m-d') . '.' . $file->getClientOriginalExtension();
+            $filePath = $file->storeAs('contracts', $fileName, 'public');
+        }
 
         return response()->json([
             'success' => true,
-            'message' => 'Contract uploaded successfully!',
-            'data' => $contractData
+            'message' => 'Contract updated successfully!',
+            'data' => [
+                'id' => $studentAssistant->id,
+                'name' => $studentAssistant->full_name ?? $studentAssistant->name,
+                'studentId' => $studentAssistant->student_id_number,
+                'office' => $studentAssistant->office,
+                'startDate' => $studentAssistant->contract_start_date,
+                'endDate' => $studentAssistant->contract_end_date,
+                'filePath' => $filePath
+            ]
         ]);
     }
 
@@ -2058,9 +2597,9 @@ class AuthController extends Controller
 
             $evaluation->update($updateData);
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Evaluation review saved successfully!',
+        return response()->json([
+            'success' => true,
+            'message' => 'Evaluation review saved successfully!',
                 'data' => [
                     'id' => $evaluation->id,
                     'status' => $evaluation->status,
@@ -2102,38 +2641,292 @@ class AuthController extends Controller
      */
     public function downloadReport(\Illuminate\Http\Request $request)
     {
+        $user = \Auth::user();
+        
+        if (!$user || $user->role !== 'HR') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized. Only HR can download reports.'
+            ], 403);
+        }
+
         $request->validate([
             'reportType' => 'required|string|in:dtr,evaluation,absent',
             'period' => 'nullable|string',
             'type' => 'nullable|string'
         ]);
 
-        // In a real implementation, you would:
-        // 1. Generate the requested report based on type and parameters
-        // 2. Create PDF/Excel file with the report data
-        // 3. Store the file temporarily
-        // 4. Return download URL or stream the file
-        // 5. Clean up temporary files after download
+        try {
+            $reportType = $request->reportType;
+            $period = $request->period;
+            $type = $request->type;
+            
+            $fileName = $this->generateReportFileName($reportType, $period, $type);
+            $csvContent = $this->generateReportCSV($reportType, $period, $type);
+            
+            // Return CSV file download
+            return response($csvContent, 200)
+                ->header('Content-Type', 'text/csv')
+                ->header('Content-Disposition', 'attachment; filename="' . $fileName . '"');
+        } catch (\Exception $e) {
+            \Log::error('Error generating report: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to generate report: ' . $e->getMessage()
+            ], 500);
+        }
+    }
 
-        $reportData = [
-            'report_type' => $request->reportType,
-            'period' => $request->period,
-            'type' => $request->type,
-            'generated_by' => \Auth::id(),
-            'generated_at' => now()->toISOString(),
-            'file_name' => $this->generateReportFileName($request->reportType, $request->period, $request->type)
-        ];
+    /**
+     * Generate CSV content for reports.
+     *
+     * @param  string  $reportType
+     * @param  string  $period
+     * @param  string  $type
+     * @return string
+     */
+    private function generateReportCSV($reportType, $period, $type)
+    {
+        $csv = [];
+        
+        switch ($reportType) {
+            case 'dtr':
+                $csv = $this->generateDTRReport($period);
+                break;
+            case 'evaluation':
+                $csv = $this->generateEvaluationReport($type);
+                break;
+            case 'absent':
+                $csv = $this->generateAbsenteeismReport($period);
+                break;
+        }
+        
+        return $csv;
+    }
 
-        // For now, just return success
-        // In real implementation, generate actual report:
-        // $reportPath = $this->generateReport($reportData);
-        // return response()->download($reportPath);
+    /**
+     * Generate DTR Summary Report.
+     *
+     * @param  string  $period
+     * @return string
+     */
+    private function generateDTRReport($period)
+    {
+        $today = now();
+        $startDate = null;
+        $endDate = $today->toDateString();
+        
+        switch ($period) {
+            case 'daily':
+                $startDate = $today->toDateString();
+                break;
+            case 'weekly':
+                $startDate = $today->copy()->startOfWeek()->toDateString();
+                break;
+            case 'monthly':
+                $startDate = $today->copy()->startOfMonth()->toDateString();
+                break;
+        }
+        
+        // Get all student assistants
+        $query = \App\Models\User::where('role', 'Student Assistant');
+        if (\Schema::hasColumn('users', 'status')) {
+            $query->where(function($q) {
+                $q->whereIn('status', ['Active', 'Apprentice'])
+                  ->orWhereNull('status');
+            });
+        } else {
+            $query->where('active', 1);
+        }
+        
+        $studentAssistants = $query->get();
+        
+        $csv = [];
+        $csv[] = ['DTR Summary Report - ' . ucfirst($period)];
+        $csv[] = ['Generated: ' . now()->format('Y-m-d H:i:s')];
+        $csv[] = ['Period: ' . ($startDate ? $startDate . ' to ' . $endDate : $endDate)];
+        $csv[] = [];
+        $csv[] = ['Name', 'Office', 'Date', 'Time In', 'Time Out', 'Total Hours', 'Status'];
+        
+        foreach ($studentAssistants as $sa) {
+            $attendances = \App\Models\Attendance::where('user_id', $sa->id);
+            
+            if ($startDate) {
+                $attendances->whereBetween('date', [$startDate, $endDate]);
+            } else {
+                $attendances->whereDate('date', $endDate);
+            }
+            
+            $attendances = $attendances->orderBy('date', 'desc')->get();
+            
+            if ($attendances->isEmpty()) {
+                $csv[] = [
+                    $sa->full_name ?? $sa->name,
+                    $sa->office ?? 'N/A',
+                    $startDate ?? $endDate,
+                    'N/A',
+                    'N/A',
+                    '0',
+                    'Absent'
+                ];
+            } else {
+                foreach ($attendances as $attendance) {
+                    $totalHours = $attendance->total_minutes ? round($attendance->total_minutes / 60, 2) : 0;
+                    $csv[] = [
+                        $sa->full_name ?? $sa->name,
+                        $sa->office ?? 'N/A',
+                        $attendance->date,
+                        $attendance->time_in ? date('H:i:s', strtotime($attendance->time_in)) : 'N/A',
+                        $attendance->time_out ? date('H:i:s', strtotime($attendance->time_out)) : 'N/A',
+                        $totalHours,
+                        $attendance->status ?? 'Present'
+                    ];
+                }
+            }
+        }
+        
+        return $this->arrayToCSV($csv);
+    }
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Report generated successfully!',
-            'data' => $reportData
-        ]);
+    /**
+     * Generate Evaluation Report.
+     *
+     * @param  string  $type
+     * @return string
+     */
+    private function generateEvaluationReport($type)
+    {
+        $query = \App\Models\Evaluation::query();
+        
+        switch ($type) {
+            case 'by-office':
+                $query->orderBy('office')->orderBy('evaluation_date', 'desc');
+                break;
+            case 'by-student':
+                $query->orderBy('student_name')->orderBy('evaluation_date', 'desc');
+                break;
+            default:
+                $query->orderBy('evaluation_date', 'desc');
+        }
+        
+        $evaluations = $query->get();
+        
+        $csv = [];
+        $csv[] = ['Evaluation Report - ' . ucfirst(str_replace('-', ' ', $type))];
+        $csv[] = ['Generated: ' . now()->format('Y-m-d H:i:s')];
+        $csv[] = [];
+        $csv[] = ['Student Name', 'Office', 'Nature of Work', 'Evaluation Date', 'Rated By', 'Total Score', 'Average Score', 'Overall Rating', 'Status'];
+        
+        foreach ($evaluations as $eval) {
+            $csv[] = [
+                $eval->student_name ?? 'N/A',
+                $eval->office ?? 'N/A',
+                $eval->nature_of_work ?? 'N/A',
+                $eval->evaluation_date ?? 'N/A',
+                $eval->rated_by ?? 'N/A',
+                $eval->total_score ?? 0,
+                $eval->average_score ?? 0,
+                $eval->overall_rating ?? 'N/A',
+                $eval->status ?? 'Pending'
+            ];
+        }
+        
+        return $this->arrayToCSV($csv);
+    }
+
+    /**
+     * Generate Absenteeism Trends Report.
+     *
+     * @param  string  $period
+     * @return string
+     */
+    private function generateAbsenteeismReport($period)
+    {
+        $today = now();
+        $startDate = null;
+        $endDate = $today->toDateString();
+        
+        switch ($period) {
+            case 'monthly':
+                $startDate = $today->copy()->startOfMonth()->toDateString();
+                break;
+            case 'quarterly':
+                $startDate = $today->copy()->startOfQuarter()->toDateString();
+                break;
+            case 'yearly':
+                $startDate = $today->copy()->startOfYear()->toDateString();
+                break;
+        }
+        
+        // Get all student assistants
+        $query = \App\Models\User::where('role', 'Student Assistant');
+        if (\Schema::hasColumn('users', 'status')) {
+            $query->where(function($q) {
+                $q->whereIn('status', ['Active', 'Apprentice'])
+                  ->orWhereNull('status');
+            });
+        } else {
+            $query->where('active', 1);
+        }
+        
+        $studentAssistants = $query->get();
+        
+        $csv = [];
+        $csv[] = ['Absenteeism Trends Report - ' . ucfirst($period)];
+        $csv[] = ['Generated: ' . now()->format('Y-m-d H:i:s')];
+        $csv[] = ['Period: ' . ($startDate ? $startDate . ' to ' . $endDate : $endDate)];
+        $csv[] = [];
+        $csv[] = ['Name', 'Office', 'Total Days', 'Present Days', 'Absent Days', 'Late Count', 'Absence Rate (%)'];
+        
+        foreach ($studentAssistants as $sa) {
+            $attendances = \App\Models\Attendance::where('user_id', $sa->id);
+            
+            if ($startDate) {
+                $attendances->whereBetween('date', [$startDate, $endDate]);
+            } else {
+                $attendances->whereDate('date', $endDate);
+            }
+            
+            $allAttendances = $attendances->get();
+            $presentDays = $allAttendances->where('status', '!=', 'Absent')->count();
+            $absentDays = $allAttendances->where('status', 'Absent')->count();
+            $lateCount = $allAttendances->where('status', 'Late')->count();
+            $totalDays = $presentDays + $absentDays;
+            $absenceRate = $totalDays > 0 ? round(($absentDays / $totalDays) * 100, 2) : 0;
+            
+            $csv[] = [
+                $sa->full_name ?? $sa->name,
+                $sa->office ?? 'N/A',
+                $totalDays,
+                $presentDays,
+                $absentDays,
+                $lateCount,
+                $absenceRate
+            ];
+        }
+        
+        return $this->arrayToCSV($csv);
+    }
+
+    /**
+     * Convert array to CSV string.
+     *
+     * @param  array  $data
+     * @return string
+     */
+    private function arrayToCSV($data)
+    {
+        $output = fopen('php://temp', 'r+');
+        
+        foreach ($data as $row) {
+            fputcsv($output, $row);
+        }
+        
+        rewind($output);
+        $csv = stream_get_contents($output);
+        fclose($output);
+        
+        return $csv;
     }
 
     /**
@@ -2157,7 +2950,103 @@ class AuthController extends Controller
             $baseName .= '_' . ucfirst(str_replace('-', '_', $type));
         }
         
-        return $baseName . '_' . $timestamp . '.pdf';
+        return $baseName . '_' . $timestamp . '.csv';
+    }
+
+    /**
+     * Get performance data for reports page.
+     *
+     * @return \Illuminate\Http\Response
+     */
+    public function getPerformanceData()
+    {
+        $user = \Auth::user();
+        
+        if (!$user || $user->role !== 'HR') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized. Only HR can access this.'
+            ], 403);
+        }
+
+        try {
+            // Get all student assistants with office relationship loaded
+            $query = \App\Models\User::where('role', 'Student Assistant')->with('officeRelation');
+            if (\Schema::hasColumn('users', 'status')) {
+                $query->where(function($q) {
+                    $q->whereIn('status', ['Active', 'Apprentice'])
+                      ->orWhereNull('status');
+                });
+            } else {
+                $query->where('active', 1);
+            }
+            
+            $studentAssistants = $query->get();
+            $performanceData = [];
+            
+            // Calculate performance metrics for each student assistant
+            foreach ($studentAssistants as $sa) {
+                // Get attendance records for the last 30 days
+                $startDate = now()->subDays(30)->toDateString();
+                $endDate = now()->toDateString();
+                
+                $attendances = \App\Models\Attendance::where('user_id', $sa->id)
+                    ->whereBetween('date', [$startDate, $endDate])
+                    ->get();
+                
+                $totalDays = 30;
+                $presentDays = $attendances->where('status', '!=', 'Absent')->count();
+                $lateCount = $attendances->where('status', 'Late')->count();
+                $absentCount = max(0, $totalDays - $presentDays);
+                $attendanceRate = $totalDays > 0 ? round(($presentDays / $totalDays) * 100, 2) : 0;
+                
+                // Get average evaluation score
+                $evaluations = \App\Models\Evaluation::where(function($q) use ($sa) {
+                    $q->where('student_name', $sa->full_name ?? $sa->name);
+                    if (\Schema::hasColumn('evaluations', 'student_assistant_id')) {
+                        $q->orWhere('student_assistant_id', $sa->id);
+                    }
+                })->get();
+                
+                $avgEvaluation = 0;
+                if ($evaluations->count() > 0) {
+                    $avgEvaluation = round($evaluations->avg('average_score') ?? 0, 1);
+                }
+                
+                // Get status
+                $status = 'Active';
+                if (\Schema::hasColumn('users', 'status')) {
+                    $status = $sa->status ?? 'Active';
+                } else {
+                    $status = $sa->active ? 'Active' : 'Inactive';
+                }
+                
+                // Get office name from relationship (current name from database) or fallback to office field
+                $officeName = $sa->officeRelation ? $sa->officeRelation->name : ($sa->office ?? 'N/A');
+                
+                $performanceData[] = [
+                    'id' => $sa->id,
+                    'name' => $sa->full_name ?? $sa->name,
+                    'office' => $officeName,
+                    'attendance' => $attendanceRate,
+                    'lates' => $lateCount,
+                    'absences' => $absentCount,
+                    'evaluationScore' => $avgEvaluation,
+                    'status' => $status
+                ];
+            }
+            
+            return response()->json([
+                'success' => true,
+                'data' => $performanceData
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Error getting performance data: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to load performance data: ' . $e->getMessage()
+            ], 500);
+        }
     }
 
     /**
@@ -2277,6 +3166,8 @@ class AuthController extends Controller
             'is_active' => 'nullable|boolean',
         ]);
 
+        $oldName = $office->name;
+        
         $office->update([
             'name' => $request->name,
             'code' => $request->code,
@@ -2287,6 +3178,12 @@ class AuthController extends Controller
             'contact_phone' => $request->contact_phone,
             'is_active' => $request->is_active ?? $office->is_active,
         ]);
+
+        // Update office name in users table for backward compatibility
+        if ($oldName !== $request->name) {
+            \App\Models\User::where('office_id', $office->id)
+                ->update(['office' => $request->name]);
+        }
 
         return response()->json([
             'success' => true,
@@ -2313,7 +3210,7 @@ class AuthController extends Controller
         }
 
         // Check if office is being used by any users
-        $usersCount = \App\Models\User::where('office', $office->name)->count();
+        $usersCount = \App\Models\User::where('office_id', $office->id)->count();
         
         if ($usersCount > 0) {
             return response()->json([
@@ -2351,8 +3248,22 @@ class AuthController extends Controller
     public function getOfficeHeads()
     {
         $officeHeads = \App\Models\User::where('role', 'Office Head')
+            ->with('officeRelation')
             ->orderBy('name')
-            ->get();
+            ->get()
+            ->map(function ($officeHead) {
+                return [
+                    'id' => $officeHead->id,
+                    'name' => $officeHead->name,
+                    'full_name' => $officeHead->full_name,
+                    'email' => $officeHead->email,
+                    'office' => $officeHead->officeRelation ? $officeHead->officeRelation->name : $officeHead->office,
+                    'office_id' => $officeHead->office_id,
+                    'contact' => $officeHead->contact,
+                    'gender' => $officeHead->gender,
+                    'active' => $officeHead->active,
+                ];
+            });
         
         return response()->json([
             'success' => true,
@@ -2368,7 +3279,9 @@ class AuthController extends Controller
      */
     public function getOfficeHead($id)
     {
-        $officeHead = \App\Models\User::where('role', 'Office Head')->find($id);
+        $officeHead = \App\Models\User::where('role', 'Office Head')
+            ->with('officeRelation')
+            ->find($id);
         
         if (!$officeHead) {
             return response()->json([
@@ -2377,9 +3290,21 @@ class AuthController extends Controller
             ], 404);
         }
 
+        $data = [
+            'id' => $officeHead->id,
+            'name' => $officeHead->name,
+            'full_name' => $officeHead->full_name,
+            'email' => $officeHead->email,
+            'office' => $officeHead->officeRelation ? $officeHead->officeRelation->name : $officeHead->office,
+            'office_id' => $officeHead->office_id,
+            'contact' => $officeHead->contact,
+            'gender' => $officeHead->gender,
+            'active' => $officeHead->active,
+        ];
+
         return response()->json([
             'success' => true,
-            'data' => $officeHead
+            'data' => $data
         ]);
     }
 
@@ -2402,6 +3327,16 @@ class AuthController extends Controller
             'active' => 'nullable|boolean',
         ]);
 
+        // Find office by name
+        $office = \App\Models\Office::where('name', $request->office)->first();
+        
+        if (!$office) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Office not found.'
+            ], 422);
+        }
+
         $passwordHash = \Hash::make($request->password);
 
         $officeHead = \App\Models\User::create([
@@ -2411,7 +3346,8 @@ class AuthController extends Controller
             'password' => $passwordHash,
             'password_hash' => $passwordHash,
             'role' => 'Office Head',
-            'office' => $request->office,
+            'office' => $request->office, // Keep for backward compatibility
+            'office_id' => $office->id,
             'contact' => $request->contact,
             'gender' => $request->gender,
             'active' => $request->active ?? 1,
@@ -2421,7 +3357,7 @@ class AuthController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Office head account created successfully!',
-            'data' => $officeHead
+            'data' => $officeHead->load('officeRelation')
         ]);
     }
 
@@ -2454,11 +3390,22 @@ class AuthController extends Controller
             'active' => 'nullable|boolean',
         ]);
 
+        // Find office by name
+        $office = \App\Models\Office::where('name', $request->office)->first();
+        
+        if (!$office) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Office not found.'
+            ], 422);
+        }
+
         $updateData = [
             'name' => $request->name,
             'full_name' => $request->full_name,
             'email' => $request->email,
-            'office' => $request->office,
+            'office' => $request->office, // Keep for backward compatibility
+            'office_id' => $office->id,
             'contact' => $request->contact,
             'gender' => $request->gender,
             'active' => $request->active ?? $officeHead->active,
@@ -2475,7 +3422,7 @@ class AuthController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Office head account updated successfully!',
-            'data' => $officeHead
+            'data' => $officeHead->load('officeRelation')
         ]);
     }
 
@@ -2551,9 +3498,15 @@ class AuthController extends Controller
             ], 404);
         }
 
+        // Decode work_schedule if it exists
+        $data = $studentAssistant->toArray();
+        if (isset($data['work_schedule']) && is_string($data['work_schedule'])) {
+            $data['work_schedule'] = json_decode($data['work_schedule'], true);
+        }
+
         return response()->json([
             'success' => true,
-            'data' => $studentAssistant
+            'data' => $data
         ]);
     }
 
@@ -2574,10 +3527,59 @@ class AuthController extends Controller
             'office' => 'required|string|max:255',
             'contact' => 'nullable|string|max:20|regex:/^09\d{9}$/',
             'gender' => 'required|string|in:male,female,other',
+            'status' => 'nullable|string|in:Active,Inactive,Apprentice,Pending Assignment',
             'active' => 'nullable|boolean',
+            'contract_start_date' => 'nullable|date',
+            'contract_end_date' => 'nullable|date|after:contract_start_date',
+            'scheduled_time_in' => 'nullable|date_format:H:i',
+            'scheduled_time_out' => 'nullable|date_format:H:i',
+            'work_schedule' => 'nullable|array',
+            'work_schedule.*.time_in' => 'required_with:work_schedule|date_format:H:i',
+            'work_schedule.*.time_out' => 'required_with:work_schedule|date_format:H:i',
         ]);
 
         $passwordHash = \Hash::make($request->password);
+        
+        // Set active based on status if status is provided, otherwise use request active or default to 1
+        $status = $request->status ?? 'Active';
+        $active = $request->has('active') ? $request->active : 
+                  ($status === 'Active' || $status === 'Apprentice' ? 1 : 0);
+
+        // Format scheduled times
+        $scheduledTimeIn = null;
+        if ($request->scheduled_time_in && !empty($request->scheduled_time_in)) {
+            $timeValue = $request->scheduled_time_in;
+            if (strlen($timeValue) === 5 && substr_count($timeValue, ':') === 1) {
+                $scheduledTimeIn = $timeValue . ':00';
+            } else {
+                $scheduledTimeIn = $timeValue ?: null;
+            }
+        }
+        
+        $scheduledTimeOut = null;
+        if ($request->scheduled_time_out && !empty($request->scheduled_time_out)) {
+            $timeValue = $request->scheduled_time_out;
+            if (strlen($timeValue) === 5 && substr_count($timeValue, ':') === 1) {
+                $scheduledTimeOut = $timeValue . ':00';
+            } else {
+                $scheduledTimeOut = $timeValue ?: null;
+            }
+        }
+        
+        // Format work schedule slots
+        $workSchedule = null;
+        if ($request->work_schedule && is_array($request->work_schedule) && count($request->work_schedule) > 0) {
+            $workSchedule = array_map(function($slot) {
+                $timeIn = $slot['time_in'];
+                $timeOut = $slot['time_out'];
+                if (strlen($timeIn) === 5) $timeIn .= ':00';
+                if (strlen($timeOut) === 5) $timeOut .= ':00';
+                return [
+                    'time_in' => $timeIn,
+                    'time_out' => $timeOut
+                ];
+            }, $request->work_schedule);
+        }
 
         $studentAssistant = \App\Models\User::create([
             'name' => $request->name,
@@ -2590,7 +3592,13 @@ class AuthController extends Controller
             'office' => $request->office,
             'contact' => $request->contact,
             'gender' => $request->gender,
-            'active' => $request->active ?? 1,
+            'status' => $status,
+            'active' => $active,
+            'contract_start_date' => $request->contract_start_date ?: null,
+            'contract_end_date' => $request->contract_end_date ?: null,
+            'scheduled_time_in' => $scheduledTimeIn,
+            'scheduled_time_out' => $scheduledTimeOut,
+            'work_schedule' => $workSchedule ? json_encode($workSchedule) : null,
             'email_verified_at' => now(),
         ]);
 
@@ -2628,8 +3636,21 @@ class AuthController extends Controller
             'office' => 'required|string|max:255',
             'contact' => 'nullable|string|max:20|regex:/^09\d{9}$/',
             'gender' => 'required|string|in:male,female,other',
+            'status' => 'nullable|string|in:Active,Inactive,Apprentice,Pending Assignment',
             'active' => 'nullable|boolean',
+            'contract_start_date' => 'nullable|date',
+            'contract_end_date' => 'nullable|date|after:contract_start_date',
+            'scheduled_time_in' => 'nullable|date_format:H:i',
+            'scheduled_time_out' => 'nullable|date_format:H:i',
+            'work_schedule' => 'nullable|array',
+            'work_schedule.*.time_in' => 'required_with:work_schedule|date_format:H:i',
+            'work_schedule.*.time_out' => 'required_with:work_schedule|date_format:H:i',
         ]);
+
+        // Set active based on status if status is provided, otherwise use request active or keep existing
+        $status = $request->status ?? $studentAssistant->status ?? 'Active';
+        $active = $request->has('active') ? $request->active : 
+                  ($request->has('status') ? ($status === 'Active' || $status === 'Apprentice' ? 1 : 0) : $studentAssistant->active);
 
         $updateData = [
             'name' => $request->name,
@@ -2639,8 +3660,57 @@ class AuthController extends Controller
             'office' => $request->office,
             'contact' => $request->contact,
             'gender' => $request->gender,
-            'active' => $request->active ?? $studentAssistant->active,
+            'status' => $status,
+            'active' => $active,
+            'contract_start_date' => $request->contract_start_date ?: null,
+            'contract_end_date' => $request->contract_end_date ?: null,
         ];
+        
+        // Format scheduled times
+        if ($request->has('scheduled_time_in')) {
+            if ($request->scheduled_time_in && !empty($request->scheduled_time_in)) {
+                $timeValue = $request->scheduled_time_in;
+                if (strlen($timeValue) === 5 && substr_count($timeValue, ':') === 1) {
+                    $updateData['scheduled_time_in'] = $timeValue . ':00';
+                } else {
+                    $updateData['scheduled_time_in'] = $timeValue ?: null;
+                }
+            } else {
+                $updateData['scheduled_time_in'] = null;
+            }
+        }
+        
+        if ($request->has('scheduled_time_out')) {
+            if ($request->scheduled_time_out && !empty($request->scheduled_time_out)) {
+                $timeValue = $request->scheduled_time_out;
+                if (strlen($timeValue) === 5 && substr_count($timeValue, ':') === 1) {
+                    $updateData['scheduled_time_out'] = $timeValue . ':00';
+                } else {
+                    $updateData['scheduled_time_out'] = $timeValue ?: null;
+                }
+            } else {
+                $updateData['scheduled_time_out'] = null;
+            }
+        }
+        
+        // Format work schedule
+        if ($request->has('work_schedule')) {
+            if ($request->work_schedule && is_array($request->work_schedule) && count($request->work_schedule) > 0) {
+                $workSchedule = array_map(function($slot) {
+                    $timeIn = $slot['time_in'];
+                    $timeOut = $slot['time_out'];
+                    if (strlen($timeIn) === 5) $timeIn .= ':00';
+                    if (strlen($timeOut) === 5) $timeOut .= ':00';
+                    return [
+                        'time_in' => $timeIn,
+                        'time_out' => $timeOut
+                    ];
+                }, $request->work_schedule);
+                $updateData['work_schedule'] = json_encode($workSchedule);
+            } else {
+                $updateData['work_schedule'] = null;
+            }
+        }
 
         if ($request->filled('password')) {
             $passwordHash = \Hash::make($request->password);
@@ -2707,39 +3777,45 @@ class AuthController extends Controller
             ], 403);
         }
 
+        // Load office relationship if available
+        if (method_exists($user, 'officeRelation')) {
+            $user->load('officeRelation');
+        }
+
         // Use Asia/Manila timezone
         $nowManila = now('Asia/Manila');
         $today = $nowManila->toDateString();
         
-        // Check if already timed in today
-        // Using whereDate to compare date part only (ignores time component)
-        $existingAttendance = \App\Models\Attendance::where('user_id', $user->id)
+        // Check if there's an open time-in (time-in without time-out) for today
+        $openAttendance = \App\Models\Attendance::where('user_id', $user->id)
             ->whereDate('date', $today)
+            ->whereNotNull('time_in')
+            ->whereNull('time_out')
+            ->orderBy('time_in', 'desc')
             ->first();
 
-        if ($existingAttendance) {
+        if ($openAttendance) {
             // Format existing time in Manila timezone
             $existingTimeFormatted = null;
-            if ($existingAttendance->time_in) {
+            if ($openAttendance->time_in) {
                 try {
-                    // Get the date string safely
-                    $existingDateString = $existingAttendance->date instanceof \Carbon\Carbon 
-                        ? $existingAttendance->date->format('Y-m-d') 
-                        : $existingAttendance->date;
+                    $existingDateString = $openAttendance->date instanceof \Carbon\Carbon 
+                        ? $openAttendance->date->format('Y-m-d') 
+                        : $openAttendance->date;
                     
-                    $existingTimeFormatted = \Carbon\Carbon::parse($existingDateString . ' ' . $existingAttendance->time_in, 'Asia/Manila')
+                    $existingTimeFormatted = \Carbon\Carbon::parse($existingDateString . ' ' . $openAttendance->time_in, 'Asia/Manila')
                         ->setTimezone('Asia/Manila')
                         ->format('g:i A');
                 } catch (\Exception $e) {
-                    $existingTimeFormatted = $existingAttendance->time_in;
+                    $existingTimeFormatted = $openAttendance->time_in;
                 }
             }
             
             return response()->json([
                 'success' => false,
-                'message' => 'You have already timed in today.',
+                'message' => 'You have an open time-in session. Please time out first before timing in again.',
                 'existing_time_in' => $existingTimeFormatted,
-                'existing_date' => $existingAttendance->date,
+                'existing_date' => $openAttendance->date,
                 'today_date' => $today
             ], 422);
         }
@@ -2755,13 +3831,83 @@ class AuthController extends Controller
         }
 
         try {
+            // Handle photo upload if provided
+            $timeInPhoto = null;
+            try {
+                if ($request->hasFile('photo')) {
+                    $photo = $request->file('photo');
+                    $photoName = 'time_in_' . $user->id . '_' . $today . '_' . time() . '.' . $photo->getClientOriginalExtension();
+                    $photoPath = $photo->storeAs('attendance_photos', $photoName, 'public');
+                    $timeInPhoto = $photoPath;
+                } elseif ($request->has('photo_base64') && !empty($request->input('photo_base64'))) {
+                    // Handle base64 image from camera
+                    $base64Image = $request->input('photo_base64');
+                    if (preg_match('/^data:image\/(\w+);base64,/', $base64Image, $type)) {
+                        $image = substr($base64Image, strpos($base64Image, ',') + 1);
+                        $image = base64_decode($image, true);
+                        
+                        if ($image === false) {
+                            \Log::warning('Failed to decode base64 image for time in', ['user_id' => $user->id]);
+                        } else {
+                            $type = strtolower($type[1]);
+                            
+                            if (!in_array($type, ['jpg', 'jpeg', 'png'])) {
+                                \Log::warning('Invalid image type for time in', ['type' => $type, 'user_id' => $user->id]);
+                            } else {
+                                // Ensure directory exists
+                                $directory = storage_path('app/public/attendance_photos');
+                                if (!\File::exists($directory)) {
+                                    \File::makeDirectory($directory, 0755, true);
+                                }
+                                
+                                $photoName = 'time_in_' . $user->id . '_' . $today . '_' . time() . '.' . $type;
+                                $photoPath = 'attendance_photos/' . $photoName;
+                                
+                                if (\Storage::disk('public')->put($photoPath, $image)) {
+                                    $timeInPhoto = $photoPath;
+                                } else {
+                                    \Log::error('Failed to save time in photo', ['user_id' => $user->id, 'path' => $photoPath]);
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (\Exception $photoError) {
+                // Log photo error but don't block time in
+                \Log::error('Error processing time in photo: ' . $photoError->getMessage(), [
+                    'user_id' => $user->id,
+                    'error' => $photoError->getTraceAsString()
+                ]);
+                // Continue without photo - photo is optional for now
+            }
+
+            // Get office name (for backward compatibility with attendance table)
+            $officeName = $user->office;
+            try {
+                if (method_exists($user, 'officeRelation') && $user->relationLoaded('officeRelation') && $user->officeRelation) {
+                    $officeName = $user->officeRelation->name;
+                } elseif (!$officeName && \Schema::hasColumn('users', 'office_id') && $user->office_id) {
+                    $officeModel = \App\Models\Office::find($user->office_id);
+                    if ($officeModel) {
+                        $officeName = $officeModel->name;
+                    }
+                }
+            } catch (\Exception $officeError) {
+                \Log::warning('Error getting office name for time in', [
+                    'user_id' => $user->id,
+                    'error' => $officeError->getMessage()
+                ]);
+                // Use existing office field or null
+            }
+
             $attendance = \App\Models\Attendance::create([
                 'user_id' => $user->id,
                 'student_id_number' => $user->student_id_number,
                 'name' => $user->full_name ?? $user->name ?? 'Unknown',
-                'office' => $user->office,
+                'office' => $officeName ?? null,
                 'date' => $today,
                 'time_in' => $timeIn,
+                'time_in_photo' => $timeInPhoto,
                 'status' => $status,
                 'review_status' => null, // Pending review
             ]);
@@ -2774,13 +3920,16 @@ class AuthController extends Controller
                     'formatted_time_in' => $nowManila->format('g:i A'),
                     'status' => $status,
                     'date' => $today,
+                    'photo_captured' => !empty($timeInPhoto)
                 ]
             ]);
         } catch (\Exception $e) {
             \Log::error('Time in error: ' . $e->getMessage(), [
-                'user_id' => $user->id,
-                'date' => $today,
-                'error' => $e->getTraceAsString()
+                'user_id' => $user->id ?? null,
+                'date' => $today ?? null,
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString()
             ]);
             
             return response()->json([
@@ -2819,45 +3968,35 @@ class AuthController extends Controller
         // Use Asia/Manila timezone
         $nowManila = now('Asia/Manila');
         $today = $nowManila->toDateString();
+        $currentTime = $nowManila->toTimeString();
+        $currentHour = (int) $nowManila->format('H');
         
         try {
+            // Find the latest time-in without time-out for today
             $attendance = \App\Models\Attendance::where('user_id', $user->id)
                 ->whereDate('date', $today)
+                ->whereNotNull('time_in')
+                ->whereNull('time_out')
+                ->orderBy('time_in', 'desc')
                 ->first();
 
             if (!$attendance) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'You have not timed in today. Please time in first.'
-                ], 422);
-            }
-
-            if ($attendance->time_out) {
-                // Format existing time out in Manila timezone
-                $existingTimeOutFormatted = null;
-                if ($attendance->time_out) {
-                    try {
-                        $existingTimeOutFormatted = \Carbon\Carbon::parse($attendance->date->format('Y-m-d') . ' ' . $attendance->time_out, 'Asia/Manila')
-                            ->setTimezone('Asia/Manila')
-                            ->format('g:i A');
-                    } catch (\Exception $e) {
-                        $existingTimeOutFormatted = $attendance->time_out;
-                    }
-                }
-                
-                return response()->json([
-                    'success' => false,
-                    'message' => 'You have already timed out today.',
-                    'existing_time_out' => $existingTimeOutFormatted
+                    'message' => 'You have no open time-in session. Please time in first.'
                 ], 422);
             }
 
             // Get current time in Manila timezone
             $timeOut = $nowManila->toTimeString();
             
-            // Calculate total minutes
+            // Get date string safely
+            $dateString = $attendance->date instanceof \Carbon\Carbon 
+                ? $attendance->date->format('Y-m-d') 
+                : ($attendance->date ?? $today);
+            
+            // Calculate total minutes for current session
             try {
-                $dateString = $attendance->date->format('Y-m-d');
                 // Parse times assuming they are in Asia/Manila timezone
                 $timeInCarbon = \Carbon\Carbon::parse($dateString . ' ' . $attendance->time_in, 'Asia/Manila')
                     ->setTimezone('Asia/Manila');
@@ -2869,22 +4008,120 @@ class AuthController extends Controller
                     'attendance_id' => $attendance->id,
                     'time_in' => $attendance->time_in,
                     'time_out' => $timeOut,
-                    'date' => $dateString
+                    'date' => $dateString,
+                    'trace' => $e->getTraceAsString()
                 ]);
                 $totalMinutes = 0;
+            }
+            
+            // Calculate total minutes worked today (including all completed sessions + current session)
+            $totalMinutesToday = $totalMinutes; // Start with current session
+            $completedSessions = \App\Models\Attendance::where('user_id', $user->id)
+                ->whereDate('date', $today)
+                ->whereNotNull('time_in')
+                ->whereNotNull('time_out')
+                ->where('id', '!=', $attendance->id) // Exclude current session
+                ->get();
+            
+            foreach ($completedSessions as $session) {
+                if ($session->total_minutes) {
+                    $totalMinutesToday += $session->total_minutes;
+                }
+            }
+            
+            // Automatic overtime detection (no blocking - just log it)
+            $isOvertime = false;
+            $minimumMinutes = 300; // 5 hours
+            if ($totalMinutesToday > $minimumMinutes) {
+                $isOvertime = true;
+                // Log overtime session
+                \Log::info('Overtime detected for Student Assistant', [
+                    'user_id' => $user->id,
+                    'email' => $user->email,
+                    'date' => $today,
+                    'total_minutes_today' => $totalMinutesToday,
+                    'overtime_minutes' => $totalMinutesToday - $minimumMinutes,
+                    'sessions_count' => $completedSessions->count() + 1
+                ]);
             }
 
             // Update status to Completed
             $status = 'Completed';
             
-            // Check if minimum hours worked (e.g., 4 hours = 240 minutes)
-            $minimumMinutes = 240; // 4 hours
-            if ($totalMinutes < $minimumMinutes) {
+            // Check if minimum hours worked (e.g., 5 hours = 300 minutes)
+            $minimumMinutesRequired = 300; // 5 hours
+            if ($totalMinutes < $minimumMinutesRequired) {
                 $status = 'Incomplete';
+            }
+            
+            // Log session (time in and time out)
+            \Log::info('Attendance session completed', [
+                'user_id' => $user->id,
+                'email' => $user->email,
+                'attendance_id' => $attendance->id,
+                'date' => $today,
+                'time_in' => $attendance->time_in,
+                'time_out' => $timeOut,
+                'total_minutes' => $totalMinutes,
+                'total_minutes_today' => $totalMinutesToday,
+                'status' => $status,
+                'is_overtime' => $isOvertime,
+                'session_number' => $completedSessions->count() + 1
+            ]);
+
+            // Handle photo upload if provided
+            $timeOutPhoto = null;
+            try {
+                if ($request->hasFile('photo')) {
+                    $photo = $request->file('photo');
+                    $photoName = 'time_out_' . $user->id . '_' . $today . '_' . time() . '.' . $photo->getClientOriginalExtension();
+                    $photoPath = $photo->storeAs('attendance_photos', $photoName, 'public');
+                    $timeOutPhoto = $photoPath;
+                } elseif ($request->has('photo_base64') && !empty($request->input('photo_base64'))) {
+                    // Handle base64 image from camera
+                    $base64Image = $request->input('photo_base64');
+                    if (preg_match('/^data:image\/(\w+);base64,/', $base64Image, $type)) {
+                        $image = substr($base64Image, strpos($base64Image, ',') + 1);
+                        $image = base64_decode($image, true);
+                        
+                        if ($image === false) {
+                            \Log::warning('Failed to decode base64 image for time out', ['user_id' => $user->id]);
+                        } else {
+                            $type = strtolower($type[1]);
+                            
+                            if (!in_array($type, ['jpg', 'jpeg', 'png'])) {
+                                \Log::warning('Invalid image type for time out', ['type' => $type, 'user_id' => $user->id]);
+                            } else {
+                                // Ensure directory exists
+                                $directory = storage_path('app/public/attendance_photos');
+                                if (!\File::exists($directory)) {
+                                    \File::makeDirectory($directory, 0755, true);
+                                }
+                                
+                                $photoName = 'time_out_' . $user->id . '_' . $today . '_' . time() . '.' . $type;
+                                $photoPath = 'attendance_photos/' . $photoName;
+                                
+                                if (\Storage::disk('public')->put($photoPath, $image)) {
+                                    $timeOutPhoto = $photoPath;
+                                } else {
+                                    \Log::error('Failed to save time out photo', ['user_id' => $user->id, 'path' => $photoPath]);
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (\Exception $photoError) {
+                // Log photo error but don't block time out
+                \Log::error('Error processing time out photo: ' . $photoError->getMessage(), [
+                    'user_id' => $user->id,
+                    'error' => $photoError->getTraceAsString()
+                ]);
+                // Continue without photo - photo is optional for now
             }
 
             $attendance->update([
                 'time_out' => $timeOut,
+                'time_out_photo' => $timeOutPhoto,
                 'total_minutes' => $totalMinutes,
                 'status' => $status,
             ]);
@@ -2906,15 +4143,71 @@ class AuthController extends Controller
                 }
             }
 
+            // Format total time for today
+            $formattedTotalTimeToday = '--';
+            if ($totalMinutesToday > 0) {
+                $hours = floor($totalMinutesToday / 60);
+                $minutes = $totalMinutesToday % 60;
+                if ($hours > 0 && $minutes > 0) {
+                    $formattedTotalTimeToday = "{$hours}h {$minutes}m";
+                } elseif ($hours > 0) {
+                    $formattedTotalTimeToday = "{$hours}h";
+                } else {
+                    $formattedTotalTimeToday = "{$minutes}m";
+                }
+            }
+            
+            // Get all sessions for today for logging
+            $allSessionsToday = \App\Models\Attendance::where('user_id', $user->id)
+                ->whereDate('date', $today)
+                ->whereNotNull('time_in')
+                ->orderBy('time_in', 'asc')
+                ->get()
+                ->map(function($session) use ($dateString) {
+                    $timeInFmt = null;
+                    $timeOutFmt = null;
+                    if ($session->time_in) {
+                        try {
+                            $timeInFmt = \Carbon\Carbon::parse($dateString . ' ' . $session->time_in, 'Asia/Manila')
+                                ->setTimezone('Asia/Manila')
+                                ->format('g:i A');
+                        } catch (\Exception $e) {
+                            $timeInFmt = $session->time_in;
+                        }
+                    }
+                    if ($session->time_out) {
+                        try {
+                            $timeOutFmt = \Carbon\Carbon::parse($dateString . ' ' . $session->time_out, 'Asia/Manila')
+                                ->setTimezone('Asia/Manila')
+                                ->format('g:i A');
+                        } catch (\Exception $e) {
+                            $timeOutFmt = $session->time_out;
+                        }
+                    }
+                    return [
+                        'id' => $session->id,
+                        'time_in' => $timeInFmt,
+                        'time_out' => $timeOutFmt,
+                        'total_minutes' => $session->total_minutes,
+                        'status' => $session->status,
+                    ];
+                });
+
             return response()->json([
                 'success' => true,
-                'message' => 'Time out recorded successfully!',
+                'message' => $isOvertime 
+                    ? 'Time out recorded successfully! Overtime detected and logged.' 
+                    : 'Time out recorded successfully!',
                 'data' => [
                     'time_out' => $timeOut,
                     'formatted_time_out' => $nowManila->format('g:i A'),
                     'total_minutes' => $totalMinutes,
                     'formatted_total_time' => $formattedTotalTime,
+                    'total_minutes_today' => $totalMinutesToday,
+                    'formatted_total_time_today' => $formattedTotalTimeToday,
                     'status' => $status,
+                    'is_overtime' => $isOvertime,
+                    'sessions_today' => $allSessionsToday,
                 ]
             ]);
         } catch (\Exception $e) {
@@ -2952,11 +4245,13 @@ class AuthController extends Controller
         $today = now('Asia/Manila')->toDateString();
 
         try {
-            $attendance = \App\Models\Attendance::where('user_id', $user->id)
+            // Get all attendance records for today, ordered by time_in desc
+            $attendances = \App\Models\Attendance::where('user_id', $user->id)
                 ->whereDate('date', $today)
-                ->first();
+                ->orderBy('time_in', 'desc')
+                ->get();
 
-            if (!$attendance) {
+            if ($attendances->isEmpty()) {
                 return response()->json([
                     'success' => true,
                     'data' => null,
@@ -2964,9 +4259,23 @@ class AuthController extends Controller
                 ]);
             }
 
+            // Get the latest attendance record (most recent time-in)
+            $attendance = $attendances->first();
+            
+            // Also get all records for today to calculate total time
+            $allRecords = $attendances;
+            
+            // Calculate total time from all completed records today
+            $totalMinutesToday = 0;
+            foreach ($allRecords as $record) {
+                if ($record->time_in && $record->time_out && $record->total_minutes) {
+                    $totalMinutesToday += $record->total_minutes;
+                }
+            }
+
             $dateString = $attendance->date instanceof \Carbon\Carbon 
                 ? $attendance->date->format('Y-m-d') 
-                : $attendance->date;
+                : ($attendance->date ?? $today);
 
             $timeInFormatted = null;
             if ($attendance->time_in) {
@@ -2976,6 +4285,12 @@ class AuthController extends Controller
                         ->setTimezone('Asia/Manila')
                         ->format('g:i A');
                 } catch (\Exception $e) {
+                    \Log::warning('Error formatting time_in in getTodayAttendance', [
+                        'attendance_id' => $attendance->id,
+                        'time_in' => $attendance->time_in,
+                        'date' => $dateString,
+                        'error' => $e->getMessage()
+                    ]);
                     $timeInFormatted = $attendance->time_in;
                 }
             }
@@ -2988,11 +4303,17 @@ class AuthController extends Controller
                         ->setTimezone('Asia/Manila')
                         ->format('g:i A');
                 } catch (\Exception $e) {
+                    \Log::warning('Error formatting time_out in getTodayAttendance', [
+                        'attendance_id' => $attendance->id,
+                        'time_out' => $attendance->time_out,
+                        'date' => $dateString,
+                        'error' => $e->getMessage()
+                    ]);
                     $timeOutFormatted = $attendance->time_out;
                 }
             }
 
-            // Calculate formatted total time
+            // Calculate formatted total time for current session
             $formattedTotalTime = '--';
             if ($attendance->total_minutes) {
                 $hours = floor($attendance->total_minutes / 60);
@@ -3005,6 +4326,27 @@ class AuthController extends Controller
                     $formattedTotalTime = "{$minutes}m";
                 }
             }
+            
+            // Calculate formatted total time for all sessions today
+            $formattedTotalTimeToday = '--';
+            if ($totalMinutesToday > 0) {
+                $hours = floor($totalMinutesToday / 60);
+                $minutes = $totalMinutesToday % 60;
+                if ($hours > 0 && $minutes > 0) {
+                    $formattedTotalTimeToday = "{$hours}h {$minutes}m";
+                } elseif ($hours > 0) {
+                    $formattedTotalTimeToday = "{$hours}h";
+                } else {
+                    $formattedTotalTimeToday = "{$minutes}m";
+                }
+            }
+            
+            // Automatic overtime detection
+            $isOvertime = false;
+            $minimumMinutes = 300; // 5 hours
+            if ($totalMinutesToday > $minimumMinutes) {
+                $isOvertime = true;
+            }
 
             return response()->json([
                 'success' => true,
@@ -3015,9 +4357,44 @@ class AuthController extends Controller
                     'time_out' => $timeOutFormatted,
                     'time_out_raw' => $attendance->time_out, // Raw time for calculations
                     'total_minutes' => $attendance->total_minutes,
+                    'total_minutes_today' => $totalMinutesToday,
                     'formatted_total_time' => $formattedTotalTime,
+                    'formatted_total_time_today' => $formattedTotalTimeToday,
                     'status' => $attendance->status,
                     'date' => $dateString,
+                    'is_overtime' => $isOvertime,
+                    'all_records' => $allRecords->map(function($record) use ($dateString) {
+                        $recordDateString = $record->date instanceof \Carbon\Carbon 
+                            ? $record->date->format('Y-m-d') 
+                            : ($record->date ?? $dateString);
+                        $timeInFmt = null;
+                        $timeOutFmt = null;
+                        if ($record->time_in) {
+                            try {
+                                $timeInFmt = \Carbon\Carbon::parse($recordDateString . ' ' . $record->time_in, 'Asia/Manila')
+                                    ->setTimezone('Asia/Manila')
+                                    ->format('g:i A');
+                            } catch (\Exception $e) {
+                                $timeInFmt = $record->time_in;
+                            }
+                        }
+                        if ($record->time_out) {
+                            try {
+                                $timeOutFmt = \Carbon\Carbon::parse($recordDateString . ' ' . $record->time_out, 'Asia/Manila')
+                                    ->setTimezone('Asia/Manila')
+                                    ->format('g:i A');
+                            } catch (\Exception $e) {
+                                $timeOutFmt = $record->time_out;
+                            }
+                        }
+                        return [
+                            'id' => $record->id,
+                            'time_in' => $timeInFmt,
+                            'time_out' => $timeOutFmt,
+                            'total_minutes' => $record->total_minutes,
+                            'status' => $record->status,
+                        ];
+                    }),
                 ]
             ]);
         } catch (\Exception $e) {
@@ -3052,11 +4429,34 @@ class AuthController extends Controller
             ], 401);
         }
         
-        $limit = $request->get('limit', 30); // Default to last 30 records
+        $limit = $request->get('limit', 100); // Increased limit for filtering
+        $year = $request->get('year');
+        $month = $request->get('month');
+        $day = $request->get('day');
 
         try {
-            $attendances = \App\Models\Attendance::where('user_id', $user->id)
+            // Build query with filters
+            $query = \App\Models\Attendance::where('user_id', $user->id);
+            
+            // Apply year filter
+            if ($year) {
+                $query->whereYear('date', $year);
+            }
+            
+            // Apply month filter
+            if ($month) {
+                $query->whereMonth('date', $month);
+            }
+            
+            // Apply day filter
+            if ($day) {
+                $query->whereDay('date', $day);
+            }
+            
+            // Get all attendance records, ordered by date and time_in descending
+            $attendances = $query
                 ->orderBy('date', 'desc')
+                ->orderBy('time_in', 'desc')
                 ->limit($limit)
                 ->get();
 
@@ -3087,14 +4487,49 @@ class AuthController extends Controller
                     }
                 }
                 
+                // Format total time
+                $formattedTotalTime = '--';
+                if ($attendance->total_minutes) {
+                    $hours = floor($attendance->total_minutes / 60);
+                    $minutes = $attendance->total_minutes % 60;
+                    if ($hours > 0 && $minutes > 0) {
+                        $formattedTotalTime = "{$hours}h {$minutes}m";
+                    } elseif ($hours > 0) {
+                        $formattedTotalTime = "{$hours}h";
+                    } else {
+                        $formattedTotalTime = "{$minutes}m";
+                    }
+                }
+                
+                // Get photo URLs
+                $timeInPhotoUrl = null;
+                $timeOutPhotoUrl = null;
+                if ($attendance->time_in_photo) {
+                    if (\Storage::disk('public')->exists($attendance->time_in_photo)) {
+                        // Use asset() for proper URL generation
+                        $timeInPhotoUrl = asset('storage/' . $attendance->time_in_photo);
+                    }
+                }
+                if ($attendance->time_out_photo) {
+                    if (\Storage::disk('public')->exists($attendance->time_out_photo)) {
+                        // Use asset() for proper URL generation
+                        $timeOutPhotoUrl = asset('storage/' . $attendance->time_out_photo);
+                    }
+                }
+                
                 return [
                     'id' => $attendance->id,
                     'date' => $dateString,
                     'formatted_date' => $attendance->date->format('M d, Y'),
+                    'year' => $attendance->date->format('Y'),
+                    'month' => $attendance->date->format('m'),
+                    'day' => $attendance->date->format('d'),
                     'time_in' => $timeInFormatted,
                     'time_out' => $timeOutFormatted,
+                    'time_in_photo' => $timeInPhotoUrl,
+                    'time_out_photo' => $timeOutPhotoUrl,
                     'total_minutes' => $attendance->total_minutes,
-                    'formatted_total_time' => $attendance->formatted_total_time,
+                    'formatted_total_time' => $formattedTotalTime,
                     'status' => $attendance->status,
                     'office' => $attendance->office,
                 ];
@@ -3120,6 +4555,159 @@ class AuthController extends Controller
     }
 
     /**
+     * Get attendance details for a specific user (for office heads).
+     *
+     * @param  int  $userId
+     * @param  \Illuminate\Http\Request  $request
+     * @return \Illuminate\Http\Response
+     */
+    public function getUserAttendanceDetails($userId, \Illuminate\Http\Request $request)
+    {
+        $user = \Auth::user();
+        
+        if (!$user || $user->role !== 'Office Head') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized. Only Office Heads can access this.'
+            ], 403);
+        }
+
+        $office = $user->officeRelation ? $user->officeRelation->name : $user->office;
+        
+        if (!$office) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No office assigned to your account.'
+            ], 422);
+        }
+
+        try {
+            // Get the student assistant
+            $sa = \App\Models\User::find($userId);
+            
+            if (!$sa || $sa->role !== 'Student Assistant') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Student Assistant not found.'
+                ], 404);
+            }
+
+            // Verify the SA belongs to the office head's office
+            $saOffice = $sa->officeRelation ? $sa->officeRelation->name : $sa->office;
+            if ($saOffice !== $office) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'This student assistant does not belong to your office.'
+                ], 403);
+            }
+
+            // Get date filter (default to today only for DTR Summary)
+            $date = $request->get('date', now()->toDateString());
+            $startDate = $request->get('start_date', $date);
+            $endDate = $request->get('end_date', $date);
+
+            // Get attendance records
+            $attendances = \App\Models\Attendance::where('user_id', $userId)
+                ->whereBetween('date', [$startDate, $endDate])
+                ->orderBy('date', 'desc')
+                ->orderBy('time_in', 'desc')
+                ->get();
+
+            $data = $attendances->map(function ($attendance) {
+                $dateString = $attendance->date instanceof \Carbon\Carbon 
+                    ? $attendance->date->format('Y-m-d') 
+                    : $attendance->date;
+
+                $timeInFormatted = '--';
+                if ($attendance->time_in) {
+                    try {
+                        $timeInFormatted = \Carbon\Carbon::parse($dateString . ' ' . $attendance->time_in)->format('g:i A');
+                    } catch (\Exception $e) {
+                        $timeInFormatted = $attendance->time_in;
+                    }
+                }
+
+                $timeOutFormatted = '--';
+                if ($attendance->time_out) {
+                    try {
+                        $timeOutFormatted = \Carbon\Carbon::parse($dateString . ' ' . $attendance->time_out)->format('g:i A');
+                    } catch (\Exception $e) {
+                        $timeOutFormatted = $attendance->time_out;
+                    }
+                }
+
+                // Format total time
+                $formattedTotalTime = '--';
+                if ($attendance->total_minutes) {
+                    $hours = floor($attendance->total_minutes / 60);
+                    $minutes = $attendance->total_minutes % 60;
+                    if ($hours > 0 && $minutes > 0) {
+                        $formattedTotalTime = "{$hours}h {$minutes}m";
+                    } elseif ($hours > 0) {
+                        $formattedTotalTime = "{$hours}h";
+                    } else {
+                        $formattedTotalTime = "{$minutes}m";
+                    }
+                }
+
+                // Get photo URLs
+                $timeInPhotoUrl = null;
+                if ($attendance->time_in_photo) {
+                    $timeInPhotoUrl = asset('storage/' . $attendance->time_in_photo);
+                }
+                
+                $timeOutPhotoUrl = null;
+                if ($attendance->time_out_photo) {
+                    $timeOutPhotoUrl = asset('storage/' . $attendance->time_out_photo);
+                }
+
+                return [
+                    'id' => $attendance->id,
+                    'date' => $dateString,
+                    'formatted_date' => $attendance->date->format('M d, Y'),
+                    'time_in' => $timeInFormatted,
+                    'time_out' => $timeOutFormatted,
+                    'total_minutes' => $attendance->total_minutes,
+                    'formatted_total_time' => $formattedTotalTime,
+                    'status' => $attendance->status,
+                    'remarks' => $attendance->remarks,
+                    'time_in_photo' => $timeInPhotoUrl,
+                    'time_out_photo' => $timeOutPhotoUrl,
+                    'review_status' => $attendance->review_status ?? 'Pending',
+                    'reviewed_by' => $attendance->reviewed_by,
+                    'reviewed_at' => $attendance->reviewed_at ? $attendance->reviewed_at->format('Y-m-d H:i:s') : null,
+                ];
+            });
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'user' => [
+                        'id' => $sa->id,
+                        'name' => $sa->full_name ?? $sa->name,
+                        'student_id' => $sa->student_id_number,
+                        'email' => $sa->email,
+                    ],
+                    'attendances' => $data,
+                    'total' => $data->count()
+                ]
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Error loading user attendance details: ' . $e->getMessage(), [
+                'user_id' => $user->id,
+                'target_user_id' => $userId,
+                'error' => $e->getTraceAsString()
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to load attendance details.',
+                'error' => config('app.debug') ? $e->getMessage() : null
+            ], 500);
+        }
+    }
+
+    /**
      * Show Office Head SA Management page.
      *
      * @return \Illuminate\Http\Response
@@ -3129,6 +4717,19 @@ class AuthController extends Controller
         return view('officeheadpages.sa-management', [
             'layout' => 'side-menu',
             'pageTitle' => 'SA Management & Performance'
+        ]);
+    }
+
+    /**
+     * Show SA Account Management page for Office Heads.
+     *
+     * @return \Illuminate\Http\Response
+     */
+    public function officeHeadSAAccountManagement()
+    {
+        return view('officeheadpages.sa-account-management', [
+            'layout' => 'side-menu',
+            'pageTitle' => 'SA Account Management'
         ]);
     }
 
@@ -3149,8 +4750,8 @@ class AuthController extends Controller
         }
 
         try {
-            $office = $user->office;
-            
+        $office = $user->office;
+        
             // HR can see all student assistants, Office Head only sees their office
             if ($user->role === 'HR') {
                 $studentAssistants = \App\Models\User::where('role', 'Student Assistant')
@@ -3159,26 +4760,59 @@ class AuthController extends Controller
                 
                 return response()->json([
                     'success' => true,
-                    'data' => $studentAssistants,
+                    'data' => $studentAssistants->map(function($sa) {
+                        return [
+                            'id' => $sa->id,
+                            'name' => $sa->name,
+                            'full_name' => $sa->full_name,
+                            'student_id_number' => $sa->student_id_number,
+                            'email' => $sa->email,
+                            'contact' => $sa->contact,
+                            'course' => $sa->course,
+                            'year_level' => $sa->year_level,
+                            'section' => $sa->section,
+                            'office' => $sa->office,
+                            'status' => $sa->status,
+                            'active' => $sa->active,
+                            'scheduled_time_in' => $sa->scheduled_time_in,
+                            'scheduled_time_out' => $sa->scheduled_time_out,
+                            'work_schedule' => $sa->work_schedule ? json_decode($sa->work_schedule, true) : null,
+                        ];
+                    }),
                     'office' => null // HR doesn't have a specific office
                 ]);
             } else {
                 // Office Head role
-                if (!$office) {
+                $officeId = $user->office_id;
+                $office = $user->office;
+                
+                if (!$officeId && !$office) {
                     return response()->json([
                         'success' => false,
                         'message' => 'No office assigned to your account.'
                     ], 422);
                 }
 
-                // Use case-insensitive comparison for office field
-                $studentAssistants = \App\Models\User::where('role', 'Student Assistant')
-                    ->whereRaw('LOWER(TRIM(office)) = LOWER(TRIM(?))', [$office])
-                    ->orderBy('name')
-                    ->get();
+                // Query student assistants - check both office_id and office name
+                // This ensures we find all SAs regardless of whether they have office_id set or not
+                $query = \App\Models\User::where('role', 'Student Assistant');
+                
+                if ($officeId && \Schema::hasColumn('users', 'office_id')) {
+                    // Check both office_id OR office name to catch all SAs
+                    $query->where(function($q) use ($officeId, $office) {
+                        $q->where('office_id', $officeId)
+                          ->orWhereRaw('LOWER(TRIM(office)) = LOWER(TRIM(?))', [$office]);
+                    });
+                } else {
+                    // Fall back to office name comparison only
+                    $query->whereRaw('LOWER(TRIM(office)) = LOWER(TRIM(?))', [$office]);
+                }
+                
+                $studentAssistants = $query->orderBy('name')->get();
 
                 \Log::info('Office Head SA query', [
                     'office_head_id' => $user->id,
+                    'office_head_office_id' => $officeId,
                     'office_head_office' => $office,
                     'student_assistants_count' => $studentAssistants->count(),
                     'student_assistants' => $studentAssistants->map(function($sa) {
@@ -3186,17 +4820,36 @@ class AuthController extends Controller
                             'id' => $sa->id,
                             'name' => $sa->name,
                             'full_name' => $sa->full_name,
+                            'office_id' => $sa->office_id,
                             'office' => $sa->office,
                             'status' => $sa->status
                         ];
                     })
                 ]);
 
-                return response()->json([
-                    'success' => true,
-                    'data' => $studentAssistants,
-                    'office' => $office
-                ]);
+        return response()->json([
+            'success' => true,
+            'data' => $studentAssistants->map(function($sa) {
+                return [
+                    'id' => $sa->id,
+                    'name' => $sa->name,
+                    'full_name' => $sa->full_name,
+                    'student_id_number' => $sa->student_id_number,
+                    'email' => $sa->email,
+                    'contact' => $sa->contact,
+                    'course' => $sa->course,
+                    'year_level' => $sa->year_level,
+                    'section' => $sa->section,
+                    'office' => $sa->office,
+                    'status' => $sa->status,
+                    'active' => $sa->active,
+                    'scheduled_time_in' => $sa->scheduled_time_in,
+                    'scheduled_time_out' => $sa->scheduled_time_out,
+                    'work_schedule' => $sa->work_schedule ? json_decode($sa->work_schedule, true) : null,
+                ];
+            }),
+            'office' => $office
+        ]);
             }
         } catch (\Exception $e) {
             \Log::error('Error getting office student assistants: ' . $e->getMessage(), [
@@ -3208,6 +4861,245 @@ class AuthController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Error loading student assistants: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Update a student assistant account (Office Head only).
+     *
+     * @param  int  $id
+     * @param  \Illuminate\Http\Request  $request
+     * @return \Illuminate\Http\Response
+     */
+    public function updateOfficeSA($id, \Illuminate\Http\Request $request)
+    {
+        $user = \Auth::user();
+        
+        if (!$user || $user->role !== 'Office Head') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized. Only Office Heads can update student assistant accounts.'
+            ], 403);
+        }
+
+        // Get office information - try office_id first, fall back to office name
+        $officeId = $user->office_id;
+        $office = $user->office;
+        
+        if (!$officeId && !$office) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No office assigned to your account.'
+            ], 422);
+        }
+
+        try {
+            $studentAssistant = \App\Models\User::where('role', 'Student Assistant')
+                ->where('id', $id)
+                ->first();
+
+            if (!$studentAssistant) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Student assistant not found.'
+                ], 404);
+            }
+
+            // Check if SA belongs to office head's office (check both office_id and office name)
+            $saBelongsToOffice = false;
+            $saOfficeId = $studentAssistant->office_id;
+            $saOffice = $studentAssistant->office;
+            
+            // Log for debugging
+            \Log::info('Office comparison check', [
+                'office_head_id' => $user->id,
+                'office_head_office_id' => $officeId,
+                'office_head_office' => $office,
+                'sa_id' => $studentAssistant->id,
+                'sa_office_id' => $saOfficeId,
+                'sa_office' => $saOffice
+            ]);
+            
+            // Priority 1: Compare office_id if both have it
+            if ($officeId && $saOfficeId && \Schema::hasColumn('users', 'office_id')) {
+                $saBelongsToOffice = ($saOfficeId == $officeId);
+            }
+            // Priority 2: Compare office names if both have them
+            elseif ($office && $saOffice) {
+                $saBelongsToOffice = (strtolower(trim($saOffice)) === strtolower(trim($office)));
+            }
+            // Priority 3: Cross-check office_id with office name
+            elseif ($officeId && $saOffice && \Schema::hasColumn('users', 'office_id')) {
+                // Try to find office by name and compare IDs
+                $saOfficeModel = \App\Models\Office::where('name', $saOffice)->first();
+                if ($saOfficeModel) {
+                    $saBelongsToOffice = ($saOfficeModel->id == $officeId);
+                }
+            }
+            elseif ($saOfficeId && $office && \Schema::hasColumn('users', 'office_id')) {
+                // Try to find office head's office by name and compare IDs
+                $officeHeadOfficeModel = \App\Models\Office::where('name', $office)->first();
+                if ($officeHeadOfficeModel) {
+                    $saBelongsToOffice = ($officeHeadOfficeModel->id == $saOfficeId);
+                }
+            }
+            
+            if (!$saBelongsToOffice) {
+                \Log::warning('Office head tried to update SA from different office', [
+                    'office_head_id' => $user->id,
+                    'office_head_office_id' => $officeId,
+                    'office_head_office' => $office,
+                    'sa_id' => $studentAssistant->id,
+                    'sa_office_id' => $saOfficeId,
+                    'sa_office' => $saOffice
+                ]);
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Unauthorized. This student assistant does not belong to your office.'
+                ], 403);
+            }
+
+            // Validate request
+            $validationRules = [
+                'full_name' => 'required|string|max:255',
+                'student_id_number' => 'required|string|max:255|unique:users,student_id_number,' . $id,
+                'email' => 'required|email|max:255|unique:users,email,' . $id,
+                'contact' => 'nullable|string|max:20',
+                'course' => 'nullable|string|max:255',
+                'year_level' => 'nullable|string|max:50',
+                'section' => 'nullable|string|max:50',
+                'scheduled_time_in' => 'nullable|date_format:H:i',
+                'scheduled_time_out' => 'nullable|date_format:H:i',
+                'work_schedule' => 'nullable|array',
+                'work_schedule.*.time_in' => 'required_with:work_schedule|date_format:H:i',
+                'work_schedule.*.time_out' => 'required_with:work_schedule|date_format:H:i',
+            ];
+            
+            // Only validate status if the column exists
+            if (\Schema::hasColumn('users', 'status')) {
+                $validationRules['status'] = 'required|string|in:Active,Inactive,Pending Assignment,Apprentice';
+            }
+            
+            $request->validate($validationRules);
+
+            // Prepare update data
+            $updateData = [
+                'full_name' => $request->full_name,
+                'name' => $request->full_name, // Also update name field
+                'student_id_number' => $request->student_id_number,
+                'email' => $request->email,
+            ];
+            
+            // Only update status if column exists
+            if (\Schema::hasColumn('users', 'status') && $request->has('status')) {
+                $updateData['status'] = $request->status;
+            }
+            
+            // Update active based on status if status exists, otherwise use request value
+            if (\Schema::hasColumn('users', 'status') && $request->has('status')) {
+                $updateData['active'] = $request->status === 'Active' ? 1 : ($request->status === 'Apprentice' ? 1 : 0);
+            } elseif ($request->has('status')) {
+                // If status doesn't exist but was provided, just use it for active calculation
+                $updateData['active'] = $request->status === 'Active' ? 1 : ($request->status === 'Apprentice' ? 1 : 0);
+            }
+
+            // Optional fields
+            if ($request->has('contact')) {
+                $updateData['contact'] = $request->contact;
+            }
+            if ($request->has('course')) {
+                $updateData['course'] = $request->course;
+            }
+            if ($request->has('year_level')) {
+                $updateData['year_level'] = $request->year_level;
+            }
+            if ($request->has('section')) {
+                $updateData['section'] = $request->section;
+            }
+            if ($request->has('scheduled_time_in')) {
+                if ($request->scheduled_time_in && !empty($request->scheduled_time_in)) {
+                    // If time is already in HH:MM:SS format, use it; otherwise add :00
+                    $timeValue = $request->scheduled_time_in;
+                    if (strlen($timeValue) === 5 && substr_count($timeValue, ':') === 1) {
+                        // Format is HH:MM, add seconds
+                        $updateData['scheduled_time_in'] = $timeValue . ':00';
+                    } else {
+                        // Already in correct format or empty
+                        $updateData['scheduled_time_in'] = $timeValue ?: null;
+                    }
+                } else {
+                    $updateData['scheduled_time_in'] = null;
+                }
+            }
+            
+            if ($request->has('scheduled_time_out')) {
+                if ($request->scheduled_time_out && !empty($request->scheduled_time_out)) {
+                    $timeValue = $request->scheduled_time_out;
+                    if (strlen($timeValue) === 5 && substr_count($timeValue, ':') === 1) {
+                        $updateData['scheduled_time_out'] = $timeValue . ':00';
+                    } else {
+                        $updateData['scheduled_time_out'] = $timeValue ?: null;
+                    }
+                } else {
+                    $updateData['scheduled_time_out'] = null;
+                }
+            }
+            
+            if ($request->has('work_schedule')) {
+                if ($request->work_schedule && is_array($request->work_schedule) && count($request->work_schedule) > 0) {
+                    $workSchedule = array_map(function($slot) {
+                        $timeIn = $slot['time_in'];
+                        $timeOut = $slot['time_out'];
+                        if (strlen($timeIn) === 5) $timeIn .= ':00';
+                        if (strlen($timeOut) === 5) $timeOut .= ':00';
+                        return [
+                            'time_in' => $timeIn,
+                            'time_out' => $timeOut
+                        ];
+                    }, $request->work_schedule);
+                    $updateData['work_schedule'] = json_encode($workSchedule);
+                } else {
+                    $updateData['work_schedule'] = null;
+                }
+            }
+
+            \Log::info('Updating SA account', [
+                'sa_id' => $id,
+                'office_head_id' => $user->id,
+                'update_data' => $updateData
+            ]);
+
+            $studentAssistant->update($updateData);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Student assistant account updated successfully!',
+                'data' => $studentAssistant->fresh()
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            \Log::warning('Validation failed for SA update', [
+                'sa_id' => $id,
+                'errors' => $e->errors()
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed.',
+                'errors' => $e->errors()
+            ], 422);
+        } catch (\Exception $e) {
+            \Log::error('Error updating SA account: ' . $e->getMessage(), [
+                'sa_id' => $id,
+                'office_head_id' => $user->id,
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to update student assistant account.',
+                'error' => config('app.debug') ? $e->getMessage() : null
             ], 500);
         }
     }
@@ -3323,36 +5215,70 @@ class AuthController extends Controller
         }
 
         try {
-            // Count assigned student assistants in this office
-            $assignedCount = \App\Models\User::where('role', 'Student Assistant')
+            $today = \Carbon\Carbon::now('Asia/Manila')->toDateString();
+            $thirtyDaysFromNow = \Carbon\Carbon::now('Asia/Manila')->addDays(30)->toDateString();
+            
+            // Count total student assistants in this office
+            $totalSACount = \App\Models\User::where('role', 'Student Assistant')
                 ->where('office', $office)
+                ->where('active', 1)
                 ->count();
 
-            // Get all student assistant IDs in this office
-            $saIds = \App\Models\User::where('role', 'Student Assistant')
+            // Count active contracts (contract_start_date <= today AND contract_end_date >= today)
+            $activeContractsCount = \App\Models\User::where('role', 'Student Assistant')
                 ->where('office', $office)
-                ->pluck('id');
-
-            // Count attendance today for student assistants in this office
-            $today = now()->toDateString();
-            $attendanceTodayCount = \App\Models\Attendance::whereIn('user_id', $saIds)
-                ->whereDate('date', $today)
-                ->whereNotNull('time_in')
-                ->pluck('user_id')
-                ->unique()
+                ->where('active', 1)
+                ->whereNotNull('contract_start_date')
+                ->whereNotNull('contract_end_date')
+                ->whereDate('contract_start_date', '<=', $today)
+                ->whereDate('contract_end_date', '>=', $today)
                 ->count();
 
-            // Count evaluations for student assistants in this office
-            $evaluationCount = \App\Models\Evaluation::where('office', $office)
-                ->where('status', '!=', 'Archived')
+            // Count pending evaluations: Active student assistants who haven't been evaluated yet
+            // Get active student assistants in this office
+            $activeSAs = \App\Models\User::where('role', 'Student Assistant')
+                ->where('office', $office)
+                ->where('active', 1)
+                ->whereNotNull('contract_start_date')
+                ->whereNotNull('contract_end_date')
+                ->whereDate('contract_start_date', '<=', $today)
+                ->whereDate('contract_end_date', '>=', $today)
+                ->get();
+            
+            // Count how many don't have any evaluation yet
+            $pendingEvaluationsCount = 0;
+            foreach ($activeSAs as $sa) {
+                $hasEvaluation = \App\Models\Evaluation::where(function($query) use ($sa) {
+                    $query->where('student_name', $sa->full_name ?? $sa->name)
+                          ->orWhere('student_name', $sa->name);
+                    if (\Schema::hasColumn('evaluations', 'student_assistant_id')) {
+                        $query->orWhere('student_assistant_id', $sa->id);
+                    }
+                })
+                ->where('office', $office)
+                ->exists();
+                
+                if (!$hasEvaluation) {
+                    $pendingEvaluationsCount++;
+                }
+            }
+
+            // Count expiring contracts (contract_end_date between today and 30 days from now)
+            $expiringContractsCount = \App\Models\User::where('role', 'Student Assistant')
+                ->where('office', $office)
+                ->where('active', 1)
+                ->whereNotNull('contract_end_date')
+                ->whereDate('contract_end_date', '>=', $today)
+                ->whereDate('contract_end_date', '<=', $thirtyDaysFromNow)
                 ->count();
 
             return response()->json([
                 'success' => true,
                 'data' => [
-                    'assigned_count' => $assignedCount,
-                    'attendance_today' => $attendanceTodayCount,
-                    'evaluation_count' => $evaluationCount,
+                    'total_student_assistants' => $totalSACount,
+                    'active_contracts' => $activeContractsCount,
+                    'pending_evaluations' => $pendingEvaluationsCount,
+                    'expiring_contracts' => $expiringContractsCount,
                     'office' => $office
                 ]
             ]);
@@ -3360,6 +5286,79 @@ class AuthController extends Controller
             \Log::error('Error loading office dashboard stats: ' . $e->getMessage(), [
                 'user_id' => $user->id,
                 'office' => $office,
+                'error' => $e->getTraceAsString()
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to load dashboard statistics.',
+                'error' => config('app.debug') ? $e->getMessage() : null
+            ], 500);
+        }
+    }
+
+    /**
+     * Get HR dashboard statistics.
+     *
+     * @return \Illuminate\Http\Response
+     */
+    public function getHRDashboardStats()
+    {
+        $user = \Auth::user();
+        
+        if (!$user || $user->role !== 'HR') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized. Only HR can access this.'
+            ], 403);
+        }
+
+        try {
+            $today = \Carbon\Carbon::now('Asia/Manila')->toDateString();
+            $thirtyDaysFromNow = \Carbon\Carbon::now('Asia/Manila')->addDays(30)->toDateString();
+            
+            // Count total student assistants across all offices
+            $totalSACount = \App\Models\User::where('role', 'Student Assistant')
+                ->where('active', 1)
+                ->count();
+
+            // Count active contracts across all offices
+            // Active contracts: contract_start_date <= today AND contract_end_date >= today
+            $activeContractsCount = \App\Models\User::where('role', 'Student Assistant')
+                ->where('active', 1)
+                ->whereNotNull('contract_start_date')
+                ->whereNotNull('contract_end_date')
+                ->whereDate('contract_start_date', '<=', $today)
+                ->whereDate('contract_end_date', '>=', $today)
+                ->count();
+
+            // Count pending evaluations across all offices
+            $pendingEvaluationsCount = \App\Models\Evaluation::where('status', 'Pending')
+                ->count();
+
+            // Count expiring contracts across all offices
+            // Expiring contracts: Currently active contracts (started) that will expire within 30 days
+            $expiringContractsCount = \App\Models\User::where('role', 'Student Assistant')
+                ->where('active', 1)
+                ->whereNotNull('contract_start_date')
+                ->whereNotNull('contract_end_date')
+                ->whereDate('contract_start_date', '<=', $today) // Contract must have started
+                ->whereDate('contract_end_date', '>=', $today) // Contract must still be active
+                ->whereDate('contract_end_date', '<=', $thirtyDaysFromNow) // Expiring within 30 days
+                ->count();
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'total_student_assistants' => $totalSACount,
+                    'active_contracts' => $activeContractsCount,
+                    'pending_evaluations' => $pendingEvaluationsCount,
+                    'expiring_contracts' => $expiringContractsCount
+                ]
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Error loading HR dashboard stats: ' . $e->getMessage(), [
+                'user_id' => $user->id,
                 'error' => $e->getTraceAsString()
             ]);
             
@@ -3391,11 +5390,45 @@ class AuthController extends Controller
 
         $sa = \App\Models\User::find($id);
         
-        if (!$sa || $sa->role !== 'Student Assistant' || $sa->office !== $user->office) {
+        if (!$sa || $sa->role !== 'Student Assistant') {
             return response()->json([
                 'success' => false,
-                'message' => 'Student Assistant not found or not under your office.'
+                'message' => 'Student Assistant not found.'
             ], 404);
+        }
+        
+        // HR can view any SA performance; Office Head is restricted to their office
+        if ($user->role === 'Office Head') {
+            $officeId = $user->office_id;
+            $office = $user->office;
+
+            if (!$officeId && !$office) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No office assigned to your account.'
+                ], 422);
+            }
+
+            // Use the same office-scoping logic as getOfficeSAs
+            $scopeQuery = \App\Models\User::where('role', 'Student Assistant');
+            if ($officeId && \Schema::hasColumn('users', 'office_id')) {
+                $scopeQuery->where(function ($q) use ($officeId, $office) {
+                    $q->where('office_id', $officeId);
+                    if ($office) {
+                        $q->orWhereRaw('LOWER(TRIM(office)) = LOWER(TRIM(?))', [$office]);
+                    }
+                });
+            } else {
+                $scopeQuery->whereRaw('LOWER(TRIM(office)) = LOWER(TRIM(?))', [$office]);
+            }
+
+            $isAccessible = $scopeQuery->where('id', $sa->id)->exists();
+            if (!$isAccessible) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'This student assistant does not belong to your office.'
+                ], 403);
+            }
         }
 
         // Get date range (default to last 30 days)
@@ -3423,16 +5456,17 @@ class AuthController extends Controller
         $expectedWorkDays = $this->calculateWorkDays($startDate, $endDate);
         $absents = max(0, $expectedWorkDays - $totalDays);
         
-        // Count overtime (total_minutes > 240 minutes = 4 hours)
+        // Count overtime (total_minutes > 300 minutes = 5 hours)
         $overtime = $attendances->filter(function ($attendance) {
-            return $attendance->total_minutes && $attendance->total_minutes > 240;
+            return $attendance->total_minutes && $attendance->total_minutes > 300;
         })->count();
 
-        // Get attendance details
-        $attendanceDetails = $attendances->map(function ($attendance) {
-            $dateString = $attendance->date instanceof \Carbon\Carbon 
-                ? $attendance->date->format('Y-m-d') 
-                : $attendance->date;
+        try {
+            // Get attendance details
+            $attendanceDetails = $attendances->map(function ($attendance) {
+                $dateString = $attendance->date instanceof \Carbon\Carbon
+                    ? $attendance->date->format('Y-m-d')
+                    : ($attendance->date ? (string) $attendance->date : now()->toDateString());
 
             $timeInFormatted = '--';
             if ($attendance->time_in) {
@@ -3466,45 +5500,67 @@ class AuthController extends Controller
                 }
             }
 
-            return [
-                'id' => $attendance->id,
-                'date' => $dateString,
-                'formatted_date' => $attendance->date->format('M d, Y'),
-                'time_in' => $timeInFormatted,
-                'time_out' => $timeOutFormatted,
-                'total_minutes' => $attendance->total_minutes,
-                'formatted_total_time' => $formattedTotalTime,
-                'status' => $attendance->status,
-            ];
-        });
+                $formattedDate = $dateString;
+                try {
+                    $formattedDate = \Carbon\Carbon::parse($dateString)->format('M d, Y');
+                } catch (\Exception $e) {
+                    // Keep raw date string if parsing fails.
+                }
 
-        return response()->json([
-            'success' => true,
-            'data' => [
-                'sa' => [
-                    'id' => $sa->id,
-                    'name' => $sa->full_name ?? $sa->name,
-                    'student_id_number' => $sa->student_id_number,
-                    'email' => $sa->email,
-                    'office' => $sa->office,
+                return [
+                    'id' => $attendance->id,
+                    'date' => $dateString,
+                    'formatted_date' => $formattedDate,
+                    'time_in' => $timeInFormatted,
+                    'time_out' => $timeOutFormatted,
+                    'total_minutes' => $attendance->total_minutes,
+                    'formatted_total_time' => $formattedTotalTime,
+                    'status' => $attendance->status,
+                ];
+            });
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'sa' => [
+                        'id' => $sa->id,
+                        'name' => $sa->full_name ?? $sa->name,
+                        'student_id_number' => $sa->student_id_number,
+                        'email' => $sa->email,
+                        'office' => $sa->office,
+                    ],
+                    'metrics' => [
+                        'total_days' => $totalDays,
+                        'total_hours' => $totalHours,
+                        'total_minutes' => $remainingMinutes,
+                        'total_time_formatted' => $totalHours > 0 ? "{$totalHours}h {$remainingMinutes}m" : "{$remainingMinutes}m",
+                        'lates' => $lates,
+                        'absents' => $absents,
+                        'overtime' => $overtime,
+                        'expected_work_days' => $expectedWorkDays,
+                    ],
+                    'attendance_details' => $attendanceDetails,
+                    'date_range' => [
+                        'start_date' => $startDate,
+                        'end_date' => $endDate,
+                    ]
                 ],
-                'metrics' => [
-                    'total_days' => $totalDays,
-                    'total_hours' => $totalHours,
-                    'total_minutes' => $remainingMinutes,
-                    'total_time_formatted' => $totalHours > 0 ? "{$totalHours}h {$remainingMinutes}m" : "{$remainingMinutes}m",
-                    'lates' => $lates,
-                    'absents' => $absents,
-                    'overtime' => $overtime,
-                    'expected_work_days' => $expectedWorkDays,
-                ],
-                'attendance_details' => $attendanceDetails,
-                'date_range' => [
-                    'start_date' => $startDate,
-                    'end_date' => $endDate,
-                ]
-            ]
-        ]);
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Error loading SA performance: ' . $e->getMessage(), [
+                'office_head_id' => $user->id ?? null,
+                'sa_id' => $id,
+                'start_date' => $startDate,
+                'end_date' => $endDate,
+                'error' => $e->getTraceAsString(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to load performance data.',
+                'error' => config('app.debug') ? $e->getMessage() : null,
+            ], 500);
+        }
     }
 
     /**
@@ -3529,6 +5585,628 @@ class AuthController extends Controller
         }
 
         return $workDays;
+    }
+
+    /**
+     * Get attendance summary by office for HR dashboard.
+     *
+     * @return \Illuminate\Http\Response
+     */
+    public function getAttendanceSummary()
+    {
+        $user = \Auth::user();
+        
+        if (!$user || $user->role !== 'HR') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized. Only HR can access this.'
+            ], 403);
+        }
+
+        try {
+            $today = \Carbon\Carbon::now('Asia/Manila')->toDateString();
+            
+            // Get all offices with student assistants using office_id
+            $query = \App\Models\User::where('role', 'Student Assistant')
+                ->whereNotNull('office_id')
+                ->with('officeRelation');
+            
+            // Check if status column exists before filtering
+            if (\Schema::hasColumn('users', 'status')) {
+                $query->where(function($q) {
+                    $q->whereIn('status', ['Active', 'Apprentice'])
+                      ->orWhereNull('status');
+                });
+            } else {
+                // Use active column if status doesn't exist
+                $query->where('active', 1);
+            }
+            
+            // Get distinct offices with their IDs
+            $offices = $query->get()
+                ->groupBy('office_id')
+                ->map(function($group) {
+                    $office = $group->first()->officeRelation;
+                    return [
+                        'id' => $office ? $office->id : null,
+                        'name' => $office ? $office->name : ($group->first()->office ?? 'Unknown')
+                    ];
+                })
+                ->filter(function($office) {
+                    return $office['id'] !== null;
+                })
+                ->values();
+            
+            $summary = [];
+            
+            foreach ($offices as $officeData) {
+                $officeId = $officeData['id'];
+                $officeName = $officeData['name'];
+                
+                // Get total student assistants in this office
+                $query = \App\Models\User::where('role', 'Student Assistant')
+                    ->where('office_id', $officeId);
+                
+                // Check if status column exists before filtering
+                if (\Schema::hasColumn('users', 'status')) {
+                    $query->where(function($q) {
+                        $q->whereIn('status', ['Active', 'Apprentice'])
+                          ->orWhereNull('status');
+                    });
+                } else {
+                    // Use active column if status doesn't exist
+                    $query->where('active', 1);
+                }
+                
+                $totalSAs = $query->count();
+                
+                // Get today's attendance records for this office (using office name for attendance table compatibility)
+                $todayAttendances = \App\Models\Attendance::where('office', $officeName)
+                    ->whereDate('date', $today)
+                    ->get();
+                
+                // Count by status
+                $present = $todayAttendances->where('status', 'Present')->count();
+                $late = $todayAttendances->where('status', 'Late')->count();
+                $absent = max(0, $totalSAs - $present - $late);
+                
+                // Count overtime (status = 'Overtime' or total_minutes > 300)
+                $overtime = 0;
+                foreach ($todayAttendances as $attendance) {
+                    if ($attendance->status === 'Overtime' || 
+                        ($attendance->total_minutes && (int)$attendance->total_minutes > 300)) {
+                        $overtime++;
+                    }
+                }
+                
+                $summary[] = [
+                    'office' => $officeName,
+                    'total' => $totalSAs,
+                    'present' => $present,
+                    'late' => $late,
+                    'absent' => $absent,
+                    'overtime' => $overtime,
+                ];
+            }
+            
+            return response()->json([
+                'success' => true,
+                'data' => $summary
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Error getting attendance summary: ' . $e->getMessage(), [
+                'user_id' => $user->id ?? null,
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Error loading attendance summary: ' . $e->getMessage(),
+                'error_details' => config('app.debug') ? [
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine(),
+                    'message' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString()
+                ] : null
+            ], 500);
+        }
+    }
+
+    /**
+     * Get attendance statistics summary for logged-in Student Assistant.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return \Illuminate\Http\Response
+     */
+    public function getSAAttendanceStats()
+    {
+        $user = \Auth::user();
+        
+        if (!$user || $user->role !== 'Student Assistant') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized. Only Student Assistants can access this.'
+            ], 403);
+        }
+
+        try {
+            // Get date range (default to last 30 days, or this month)
+            $now = \Carbon\Carbon::now('Asia/Manila');
+            $startDate = $now->copy()->startOfMonth()->toDateString();
+            $endDate = $now->toDateString();
+            
+            // Get all attendance records for this SA
+            $attendances = \App\Models\Attendance::where('user_id', $user->id)
+                ->whereBetween('date', [$startDate, $endDate])
+                ->orderBy('date', 'desc')
+                ->get();
+            
+            // Calculate metrics
+            $totalRecords = $attendances->count();
+            $totalMinutes = $attendances->sum('total_minutes') ?? 0;
+            $totalHours = floor($totalMinutes / 60);
+            $remainingMinutes = $totalMinutes % 60;
+            
+            // Count by status
+            $present = $attendances->where('status', 'Present')->count();
+            $late = $attendances->where('status', 'Late')->count();
+            $completed = $attendances->where('status', 'Completed')->count();
+            $incomplete = $attendances->where('status', 'Incomplete')->count();
+            
+            // Count overtime (total_minutes > 300 minutes = 5 hours)
+            $overtime = $attendances->filter(function ($attendance) {
+                return $attendance->total_minutes && $attendance->total_minutes > 300;
+            })->count();
+            
+            // Calculate absences (expected work days - present days)
+            // For simplicity, we'll count days with status 'Absent' if it exists
+            $absent = $attendances->where('status', 'Absent')->count();
+            
+            // If no absent status, calculate based on expected work days
+            if ($absent === 0) {
+                $expectedWorkDays = $this->calculateWorkDays($startDate, $endDate);
+                $absent = max(0, $expectedWorkDays - $totalRecords);
+            }
+            
+            // Calculate attendance rate
+            $totalWorkDays = $present + $late + $completed + $incomplete;
+            $attendanceRate = $totalWorkDays > 0 ? round(($totalWorkDays / ($totalWorkDays + $absent)) * 100, 1) : 0;
+            
+            // Get this week's stats
+            $weekStart = $now->copy()->startOfWeek()->toDateString();
+            $weekAttendances = \App\Models\Attendance::where('user_id', $user->id)
+                ->whereBetween('date', [$weekStart, $endDate])
+                ->get();
+            
+            $weekLate = $weekAttendances->where('status', 'Late')->count();
+            $weekOvertime = $weekAttendances->filter(function ($attendance) {
+                return $attendance->total_minutes && $attendance->total_minutes > 300;
+            })->count();
+            $weekTotalMinutes = $weekAttendances->sum('total_minutes') ?? 0;
+            
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'period' => [
+                        'start_date' => $startDate,
+                        'end_date' => $endDate,
+                        'period_type' => 'This Month'
+                    ],
+                    'summary' => [
+                        'total_days' => $totalRecords,
+                        'present' => $present,
+                        'late' => $late,
+                        'absent' => $absent,
+                        'completed' => $completed,
+                        'incomplete' => $incomplete,
+                        'overtime' => $overtime,
+                        'attendance_rate' => $attendanceRate,
+                        'total_hours' => $totalHours,
+                        'total_minutes' => $remainingMinutes,
+                        'total_time_formatted' => $totalHours > 0 && $remainingMinutes > 0 
+                            ? "{$totalHours}h {$remainingMinutes}m" 
+                            : ($totalHours > 0 ? "{$totalHours}h" : "{$remainingMinutes}m")
+                    ],
+                    'this_week' => [
+                        'late' => $weekLate,
+                        'overtime' => $weekOvertime,
+                        'total_minutes' => $weekTotalMinutes,
+                        'total_hours' => floor($weekTotalMinutes / 60),
+                        'total_time_formatted' => floor($weekTotalMinutes / 60) > 0 && ($weekTotalMinutes % 60) > 0
+                            ? floor($weekTotalMinutes / 60) . 'h ' . ($weekTotalMinutes % 60) . 'm'
+                            : (floor($weekTotalMinutes / 60) > 0 ? floor($weekTotalMinutes / 60) . 'h' : ($weekTotalMinutes % 60) . 'm')
+                    ]
+                ]
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Error getting SA attendance stats: ' . $e->getMessage(), [
+                'user_id' => $user->id ?? null,
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Error loading attendance statistics: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Update attendance record (for Office Head to edit attendance).
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return \Illuminate\Http\Response
+     */
+    public function updateAttendance(\Illuminate\Http\Request $request)
+    {
+        $user = \Auth::user();
+        
+        if (!$user || $user->role !== 'Office Head') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized. Only Office Heads can update attendance records.'
+            ], 403);
+        }
+
+        $request->validate([
+            'user_id' => 'required|integer|exists:users,id',
+            'date' => 'required|date',
+            'time_in' => 'nullable|date_format:H:i',
+            'time_out' => 'nullable|date_format:H:i',
+            'remarks' => 'nullable|string|max:500',
+            'attendance_id' => 'nullable|integer|exists:attendances,id'
+        ]);
+
+        try {
+            $targetUserId = $request->input('user_id');
+            $date = $request->input('date');
+            $timeIn = $request->input('time_in');
+            $timeOut = $request->input('time_out');
+            $remarks = $request->input('remarks');
+            $attendanceId = $request->input('attendance_id');
+
+            // Verify the target user is a Student Assistant in the office head's office
+            $targetUser = \App\Models\User::find($targetUserId);
+            if (!$targetUser || $targetUser->role !== 'Student Assistant') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Invalid user. Only Student Assistants can have their attendance updated.'
+                ], 422);
+            }
+
+            // Check if the SA belongs to the office head's office
+            $officeHeadOffice = $user->office_id ?? $user->office;
+            $saOffice = $targetUser->office_id ?? $targetUser->office;
+            
+            if ($officeHeadOffice !== $saOffice) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'This student assistant does not belong to your office.'
+                ], 403);
+            }
+
+            // Find or create attendance record
+            $attendance = null;
+            if ($attendanceId) {
+                $attendance = \App\Models\Attendance::where('id', $attendanceId)
+                    ->where('user_id', $targetUserId)
+                    ->whereDate('date', $date)
+                    ->first();
+            }
+            
+            if (!$attendance) {
+                $attendance = \App\Models\Attendance::where('user_id', $targetUserId)
+                    ->whereDate('date', $date)
+                    ->first();
+            }
+
+            // If no attendance record exists and we have time in/out, create one
+            if (!$attendance && ($timeIn || $timeOut)) {
+                $attendance = \App\Models\Attendance::create([
+                    'user_id' => $targetUserId,
+                    'student_id_number' => $targetUser->student_id_number,
+                    'name' => $targetUser->full_name ?? $targetUser->name,
+                    'office' => $targetUser->office ?? ($targetUser->officeRelation ? $targetUser->officeRelation->name : null),
+                    'date' => $date,
+                    'time_in' => $timeIn,
+                    'time_out' => $timeOut,
+                ]);
+            } elseif (!$attendance) {
+                // No attendance and no time in/out - mark as absent
+                $attendance = \App\Models\Attendance::create([
+                    'user_id' => $targetUserId,
+                    'student_id_number' => $targetUser->student_id_number,
+                    'name' => $targetUser->full_name ?? $targetUser->name,
+                    'office' => $targetUser->office ?? ($targetUser->officeRelation ? $targetUser->officeRelation->name : null),
+                    'date' => $date,
+                    'status' => 'Absent',
+                ]);
+            }
+
+            // Calculate total minutes and status
+            $totalMinutes = null;
+            $status = 'Absent';
+
+            if ($timeIn && $timeOut) {
+                try {
+                    $dateString = $date;
+                    $timeInCarbon = \Carbon\Carbon::parse($dateString . ' ' . $timeIn, 'Asia/Manila')
+                        ->setTimezone('Asia/Manila');
+                    $timeOutCarbon = \Carbon\Carbon::parse($dateString . ' ' . $timeOut, 'Asia/Manila')
+                        ->setTimezone('Asia/Manila');
+                    $totalMinutes = $timeOutCarbon->diffInMinutes($timeInCarbon);
+                    
+                    // Determine status
+                    $minimumMinutes = 300; // 5 hours
+                    $scheduledTimeIn = $targetUser->scheduled_time_in ?? '08:00:00';
+                    $scheduledTimeInCarbon = \Carbon\Carbon::parse($dateString . ' ' . $scheduledTimeIn, 'Asia/Manila')
+                        ->setTimezone('Asia/Manila');
+                    
+                    // Check if late (time in is after scheduled time + 15 minutes grace period)
+                    $gracePeriod = 15; // minutes
+                    $isLate = $timeInCarbon->diffInMinutes($scheduledTimeInCarbon) > $gracePeriod;
+                    
+                    if ($totalMinutes >= $minimumMinutes) {
+                        $status = $isLate ? 'Late' : 'Completed';
+                    } else {
+                        $status = $isLate ? 'Late' : 'Incomplete';
+                    }
+                } catch (\Exception $e) {
+                    \Log::error('Error calculating total minutes in updateAttendance: ' . $e->getMessage());
+                    $status = 'Present';
+                }
+            } elseif ($timeIn) {
+                // Only time in - mark as Present or Late
+                try {
+                    $dateString = $date;
+                    $scheduledTimeIn = $targetUser->scheduled_time_in ?? '08:00:00';
+                    $scheduledTimeInCarbon = \Carbon\Carbon::parse($dateString . ' ' . $scheduledTimeIn, 'Asia/Manila')
+                        ->setTimezone('Asia/Manila');
+                    $timeInCarbon = \Carbon\Carbon::parse($dateString . ' ' . $timeIn, 'Asia/Manila')
+                        ->setTimezone('Asia/Manila');
+                    
+                    $gracePeriod = 15; // minutes
+                    $isLate = $timeInCarbon->diffInMinutes($scheduledTimeInCarbon) > $gracePeriod;
+                    $status = $isLate ? 'Late' : 'Present';
+                } catch (\Exception $e) {
+                    $status = 'Present';
+                }
+            }
+
+            // Update attendance record
+            $updateData = [
+                'time_in' => $timeIn,
+                'time_out' => $timeOut,
+                'total_minutes' => $totalMinutes,
+                'status' => $status,
+            ];
+
+            if ($remarks) {
+                $updateData['remarks'] = ($attendance->remarks ? $attendance->remarks . "\n\n" : '') . 
+                    '[' . now('Asia/Manila')->format('Y-m-d H:i:s') . '] Office Head Edit: ' . $remarks;
+            }
+
+            $attendance->update($updateData);
+
+            // Format response
+            $formattedTimeIn = $timeIn ? \Carbon\Carbon::parse($date . ' ' . $timeIn, 'Asia/Manila')
+                ->format('g:i A') : null;
+            $formattedTimeOut = $timeOut ? \Carbon\Carbon::parse($date . ' ' . $timeOut, 'Asia/Manila')
+                ->format('g:i A') : null;
+
+            $formattedTotalTime = '--';
+            if ($totalMinutes) {
+                $hours = floor($totalMinutes / 60);
+                $minutes = $totalMinutes % 60;
+                if ($hours > 0 && $minutes > 0) {
+                    $formattedTotalTime = "{$hours}h {$minutes}m";
+                } elseif ($hours > 0) {
+                    $formattedTotalTime = "{$hours}h";
+                } else {
+                    $formattedTotalTime = "{$minutes}m";
+                }
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Attendance updated successfully!',
+                'data' => [
+                    'id' => $attendance->id,
+                    'date' => $date,
+                    'time_in' => $formattedTimeIn,
+                    'time_out' => $formattedTimeOut,
+                    'total_minutes' => $totalMinutes,
+                    'formatted_total_time' => $formattedTotalTime,
+                    'status' => $status,
+                ]
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Error updating attendance: ' . $e->getMessage(), [
+                'user_id' => $user->id,
+                'target_user_id' => $request->input('user_id'),
+                'date' => $request->input('date'),
+                'error' => $e->getTraceAsString()
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to update attendance. Please try again.',
+                'error' => config('app.debug') ? $e->getMessage() : null
+            ], 500);
+        }
+    }
+
+    /**
+     * Get evaluation criteria settings.
+     *
+     * @return \Illuminate\Http\Response
+     */
+    public function getEvaluationCriteriaSettings()
+    {
+        $user = \Auth::user();
+        
+        if (!$user || !in_array($user->role, ['Office Head', 'HR'])) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized.'
+            ], 403);
+        }
+
+        try {
+            $criteria = \App\Models\EvaluationCriteriaSetting::where('is_active', true)
+                ->orderBy('order')
+                ->get();
+
+            $criteriaData = [];
+            foreach ($criteria as $criterion) {
+                $criteriaData[$criterion->criterion_key] = $criterion->question_text;
+            }
+
+            return response()->json([
+                'success' => true,
+                'data' => $criteriaData
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to load criteria settings.'
+            ], 500);
+        }
+    }
+
+    /**
+     * Update evaluation criteria settings.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return \Illuminate\Http\Response
+     */
+    public function updateEvaluationCriteriaSettings(\Illuminate\Http\Request $request)
+    {
+        $user = \Auth::user();
+        
+        if (!$user || !in_array($user->role, ['Office Head', 'HR'])) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized.'
+            ], 403);
+        }
+
+        $request->validate([
+            'criteria' => 'required|array',
+            'criteria.*' => 'required|string|max:500',
+        ]);
+
+        try {
+            foreach ($request->criteria as $key => $questionText) {
+                \App\Models\EvaluationCriteriaSetting::updateOrCreate(
+                    ['criterion_key' => $key],
+                    [
+                        'question_text' => $questionText,
+                        'is_active' => true,
+                    ]
+                );
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Criteria settings updated successfully!'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to update criteria settings.'
+            ], 500);
+        }
+    }
+
+    /**
+     * Verify attendance photos (approve/reject).
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @param  int  $id
+     * @return \Illuminate\Http\Response
+     */
+    public function verifyAttendancePhotos(\Illuminate\Http\Request $request, $id)
+    {
+        $user = \Auth::user();
+        
+        if (!$user || $user->role !== 'Office Head') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized. Only Office Heads can verify attendance photos.'
+            ], 403);
+        }
+
+        $request->validate([
+            'review_status' => 'required|in:Approved,Rejected',
+            'remarks' => 'nullable|string|max:500',
+        ]);
+
+        try {
+            $attendance = \App\Models\Attendance::find($id);
+            
+            if (!$attendance) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Attendance record not found.'
+                ], 404);
+            }
+
+            // Verify the attendance belongs to the office head's office
+            $office = $user->officeRelation ? $user->officeRelation->name : $user->office;
+            $saOffice = $attendance->user && $attendance->user->officeRelation 
+                ? $attendance->user->officeRelation->name 
+                : ($attendance->user ? $attendance->user->office : $attendance->office);
+            
+            if ($saOffice !== $office) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'This attendance does not belong to your office.'
+                ], 403);
+            }
+
+            // Update review status
+            $attendance->review_status = $request->review_status;
+            $attendance->reviewed_by = $user->id;
+            $attendance->reviewed_at = now();
+            
+            if ($request->remarks) {
+                $existingRemarks = $attendance->remarks ? $attendance->remarks . "\n" : '';
+                $attendance->remarks = $existingRemarks . '[Photo Verification ' . $request->review_status . '] ' . $request->remarks;
+            } else {
+                $existingRemarks = $attendance->remarks ? $attendance->remarks . "\n" : '';
+                $attendance->remarks = $existingRemarks . '[Photo Verification ' . $request->review_status . ']';
+            }
+            
+            $attendance->save();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Attendance photos ' . strtolower($request->review_status) . ' successfully!',
+                'data' => [
+                    'id' => $attendance->id,
+                    'review_status' => $attendance->review_status,
+                    'reviewed_by' => $attendance->reviewed_by,
+                    'reviewed_at' => $attendance->reviewed_at->format('Y-m-d H:i:s'),
+                ]
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Error verifying attendance photos: ' . $e->getMessage(), [
+                'user_id' => $user->id,
+                'attendance_id' => $id,
+                'error' => $e->getTraceAsString()
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to verify attendance photos.',
+                'error' => config('app.debug') ? $e->getMessage() : null
+            ], 500);
+        }
     }
 
     /**
