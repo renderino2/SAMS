@@ -52,8 +52,10 @@
                                 <label for="filterStatus" class="form-label">Status:</label>
                                 <select id="filterStatus" class="form-control">
                                     <option value="">Status: All</option>
-                                    <option value="Reviewed">Reviewed</option>
                                     <option value="Pending">Pending</option>
+                                    <option value="Reviewed">Reviewed</option>
+                                    <option value="Approved">Approved</option>
+                                    <option value="Rejected">Rejected</option>
                                 </select>
                             </div>
                         </div>
@@ -200,139 +202,7 @@
         (function () {
             // Evaluation data loaded from API
             let evaluationData = [];
-                {
-                    id: 1,
-                    date: "2024-01-15",
-                    studentName: "John Doe",
-                    studentId: "23-12345",
-                    office: "Registrar",
-                    ratedBy: "Dr. Maria Santos",
-                    averageRating: 4.2,
-                    status: "Pending",
-                    criteria: {
-                        "Work Quality": 4,
-                        "Punctuality": 5,
-                        "Communication": 4,
-                        "Teamwork": 4,
-                        "Initiative": 3,
-                        "Problem Solving": 4,
-                        "Professionalism": 5,
-                        "Adaptability": 4,
-                        "Time Management": 4,
-                        "Overall Performance": 4
-                    },
-                    comments: "John demonstrates excellent work quality and punctuality. He shows good communication skills and works well with the team. Areas for improvement include taking more initiative in problem-solving tasks.",
-                    hrStatus: "Pending",
-                    hrRating: "",
-                    hrComments: ""
-                },
-                {
-                    id: 2,
-                    date: "2024-01-16",
-                    studentName: "Jane Smith",
-                    studentId: "23-12346",
-                    office: "Library",
-                    ratedBy: "Ms. Lisa Garcia",
-                    averageRating: 4.8,
-                    status: "Reviewed",
-                    criteria: {
-                        "Work Quality": 5,
-                        "Punctuality": 5,
-                        "Communication": 5,
-                        "Teamwork": 4,
-                        "Initiative": 5,
-                        "Problem Solving": 5,
-                        "Professionalism": 5,
-                        "Adaptability": 4,
-                        "Time Management": 5,
-                        "Overall Performance": 5
-                    },
-                    comments: "Jane is an outstanding student assistant. She consistently delivers high-quality work, is always punctual, and demonstrates excellent communication skills. She takes initiative and solves problems effectively.",
-                    hrStatus: "Reviewed",
-                    hrRating: "Excellent",
-                    hrComments: "Approved for contract renewal. Excellent performance across all criteria."
-                },
-                {
-                    id: 3,
-                    date: "2024-01-17",
-                    studentName: "Mike Johnson",
-                    studentId: "23-12347",
-                    office: "Guidance",
-                    ratedBy: "Mr. Robert Lee",
-                    averageRating: 3.1,
-                    status: "Pending",
-                    criteria: {
-                        "Work Quality": 3,
-                        "Punctuality": 2,
-                        "Communication": 3,
-                        "Teamwork": 3,
-                        "Initiative": 3,
-                        "Problem Solving": 3,
-                        "Professionalism": 4,
-                        "Adaptability": 3,
-                        "Time Management": 2,
-                        "Overall Performance": 3
-                    },
-                    comments: "Mike shows potential but needs improvement in punctuality and time management. His work quality is satisfactory but could be enhanced with better focus and attention to detail.",
-                    hrStatus: "Pending",
-                    hrRating: "",
-                    hrComments: ""
-                },
-                {
-                    id: 4,
-                    date: "2024-01-18",
-                    studentName: "Sarah Wilson",
-                    studentId: "23-12348",
-                    office: "Clinic",
-                    ratedBy: "Dr. David Brown",
-                    averageRating: 4.5,
-                    status: "Reviewed",
-                    criteria: {
-                        "Work Quality": 5,
-                        "Punctuality": 4,
-                        "Communication": 4,
-                        "Teamwork": 5,
-                        "Initiative": 4,
-                        "Problem Solving": 4,
-                        "Professionalism": 5,
-                        "Adaptability": 5,
-                        "Time Management": 4,
-                        "Overall Performance": 4
-                    },
-                    comments: "Sarah is a reliable and professional student assistant. She works well with the medical staff and handles sensitive information appropriately. Minor improvement needed in time management.",
-                    hrStatus: "Reviewed",
-                    hrRating: "Good",
-                    hrComments: "Approved with recommendation for time management training."
-                },
-                {
-                    id: 5,
-                    date: "2024-01-19",
-                    studentName: "David Brown",
-                    studentId: "23-12349",
-                    office: "IT",
-                    ratedBy: "Mr. Alex Chen",
-                    averageRating: 4.7,
-                    status: "Pending",
-                    criteria: {
-                        "Work Quality": 5,
-                        "Punctuality": 5,
-                        "Communication": 4,
-                        "Teamwork": 5,
-                        "Initiative": 5,
-                        "Problem Solving": 5,
-                        "Professionalism": 4,
-                        "Adaptability": 5,
-                        "Time Management": 4,
-                        "Overall Performance": 5
-                    },
-                    comments: "David is an exceptional student assistant with strong technical skills. He takes initiative in solving IT problems and works well with the team. Highly recommended for continued employment.",
-                    hrStatus: "Pending",
-                    hrRating: "",
-                    hrComments: ""
-                }
-            ];
-
-            let filteredData = [...evaluationData];
+            let filteredData = [];
             let currentEvaluationId = null;
 
             // DOM elements
@@ -366,45 +236,48 @@
                     
                     if (result.success && result.data && Array.isArray(result.data)) {
                         // Map API data to frontend format
-                        evaluationData = result.data.map(eval => {
-                            // Build criteria object from rate1-rate10
-                            const criteriaLabels = [
-                                '1. Punctuality and regular attendance',
-                                '2. Conscious use of time during working hours',
-                                '3. Ability to understand and follow directions',
-                                '4. Sufficient competency and skill',
-                                '5. Promptness in performing assigned work',
-                                '6. Attention to details (accuracy, neatness, etc.)',
-                                '7. Initiative (doing things without waiting for orders)',
-                                '8. Health Condition (balance work and studies)',
-                                '9. Spirit and Attitude',
-                                '10. Professional discretion'
-                            ];
+                        evaluationData = result.data.map(evaluationItem => {
+                            // Use stored questions if available, otherwise use default
+                            const storedQuestions = evaluationItem.criteria_questions || {};
+                            const defaultQuestions = {
+                                rate1: 'Punctuality and regular attendance',
+                                rate2: 'Conscious use of time during working hours',
+                                rate3: 'Ability to understand and follow directions',
+                                rate4: 'Sufficient competency and skill',
+                                rate5: 'Promptness in performing assigned work',
+                                rate6: 'Attention to details (accuracy, neatness, etc.)',
+                                rate7: 'Initiative (doing things without waiting for orders)',
+                                rate8: 'Health Condition (balance work and studies)',
+                                rate9: 'Spirit and Attitude',
+                                rate10: 'Professional discretion'
+                            };
                             
                             const criteria = {};
                             for (let i = 1; i <= 10; i++) {
                                 const rateKey = `rate${i}`;
-                                if (eval[rateKey] !== undefined && eval[rateKey] !== null) {
-                                    criteria[criteriaLabels[i - 1]] = eval[rateKey];
+                                if (evaluationItem[rateKey] !== undefined && evaluationItem[rateKey] !== null) {
+                                    const questionText = storedQuestions[rateKey] || defaultQuestions[rateKey];
+                                    criteria[`${i}. ${questionText}`] = evaluationItem[rateKey];
                                 }
                             }
                             
                             return {
-                                id: eval.id,
-                                date: eval.evaluation_date || eval.formatted_date || '',
-                                studentName: eval.student_name || '',
-                                studentId: '', // Not in API response, might need to fetch from student assistant
-                                office: eval.office || '',
-                                ratedBy: eval.rated_by || '',
-                                averageRating: eval.average_score || 0,
-                                status: eval.status || 'Pending',
+                                id: evaluationItem.id,
+                                date: evaluationItem.evaluation_date || evaluationItem.formatted_date || '',
+                                studentName: evaluationItem.student_name || '',
+                                studentId: evaluationItem.student_id_number || '',
+                                office: evaluationItem.office || '',
+                                ratedBy: evaluationItem.rated_by || '',
+                                averageRating: parseFloat(evaluationItem.average_score) || 0,
+                                status: evaluationItem.status || 'Pending',
                                 criteria: criteria,
-                                comments: eval.comments || '',
-                                overallRating: eval.overall_rating || '',
-                                natureOfWork: eval.nature_of_work || '',
-                                hrStatus: eval.status || 'Pending',
-                                hrRating: eval.hr_rating || '',
-                                hrComments: eval.hr_comments || ''
+                                comments: evaluationItem.comments || '',
+                                overallRating: evaluationItem.overall_rating || '',
+                                natureOfWork: evaluationItem.nature_of_work || '',
+                                hrStatus: evaluationItem.status || 'Pending',
+                                hrRating: evaluationItem.hr_rating || '',
+                                hrComments: evaluationItem.hr_comments || '',
+                                studentAssistantId: evaluationItem.student_assistant_id || null
                             };
                         });
                         
@@ -423,7 +296,35 @@
             // Initialize page
             async function init() {
                 await loadEvaluations();
+                await loadOfficeFilter();
                 setupEventListeners();
+            }
+            
+            // Load unique offices from evaluations for filter
+            async function loadOfficeFilter() {
+                try {
+                    const response = await fetch('/api/evaluations', {
+                        headers: {
+                            'Accept': 'application/json'
+                        }
+                    });
+                    
+                    if (!response.ok) return;
+                    
+                    const result = await response.json();
+                    if (result.success && result.data && Array.isArray(result.data)) {
+                        // Get unique offices
+                        const uniqueOffices = [...new Set(result.data.map(e => e.office).filter(Boolean))].sort();
+                        
+                        const officeFilter = document.getElementById('filterOffice');
+                        if (officeFilter) {
+                            officeFilter.innerHTML = '<option value="">All Offices</option>' + 
+                                uniqueOffices.map(office => `<option value="${office}">${office}</option>`).join('');
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error loading offices for filter:', error);
+                }
             }
 
             // Setup event listeners
@@ -500,10 +401,10 @@
             function getStatusBadgeClass(status) {
                 switch (status) {
                     case 'Reviewed': return 'bg-success text-white';
-                    case 'Pending': return 'bg-warning text-white';
-                    case 'Approved': return 'bg-blue-500 text-white';
+                    case 'Pending': return 'bg-pending text-white';
+                    case 'Approved': return 'bg-primary text-white';
                     case 'Rejected': return 'bg-danger text-white';
-                    default: return 'bg-secondary text-white';
+                    default: return 'bg-warning text-white';
                 }
             }
 
@@ -562,25 +463,27 @@
                         const evaluation = result.data;
                         currentEvaluationId = evaluationId;
                         
-                        // Build criteria object from rate1-rate10
-                        const criteriaLabels = [
-                            '1. Punctuality and regular attendance',
-                            '2. Conscious use of time during working hours',
-                            '3. Ability to understand and follow directions',
-                            '4. Sufficient competency and skill',
-                            '5. Promptness in performing assigned work',
-                            '6. Attention to details (accuracy, neatness, etc.)',
-                            '7. Initiative (doing things without waiting for orders)',
-                            '8. Health Condition (balance work and studies)',
-                            '9. Spirit and Attitude',
-                            '10. Professional discretion'
-                        ];
+                        // Use stored questions if available, otherwise use default
+                        const storedQuestions = evaluation.criteria_questions || {};
+                        const defaultQuestions = {
+                            rate1: 'Punctuality and regular attendance',
+                            rate2: 'Conscious use of time during working hours',
+                            rate3: 'Ability to understand and follow directions',
+                            rate4: 'Sufficient competency and skill',
+                            rate5: 'Promptness in performing assigned work',
+                            rate6: 'Attention to details (accuracy, neatness, etc.)',
+                            rate7: 'Initiative (doing things without waiting for orders)',
+                            rate8: 'Health Condition (balance work and studies)',
+                            rate9: 'Spirit and Attitude',
+                            rate10: 'Professional discretion'
+                        };
                         
                         const criteria = {};
                         for (let i = 1; i <= 10; i++) {
                             const rateKey = `rate${i}`;
                             if (evaluation[rateKey] !== undefined && evaluation[rateKey] !== null) {
-                                criteria[criteriaLabels[i - 1]] = evaluation[rateKey];
+                                const questionText = storedQuestions[rateKey] || defaultQuestions[rateKey];
+                                criteria[`${i}. ${questionText}`] = evaluation[rateKey];
                             }
                         }
                         
@@ -595,7 +498,8 @@
                             day: 'numeric'
                         }) : 'N/A';
                         document.getElementById('detailDate').textContent = evalDate;
-                        document.getElementById('detailOverallRating').textContent = (evaluation.average_score || 0).toFixed(1);
+                        const avgScore = parseFloat(evaluation.average_score) || 0;
+                        document.getElementById('detailOverallRating').innerHTML = `<span class="badge ${getRatingBadgeClass(avgScore)} text-white rounded px-2 py-1">${avgScore.toFixed(1)} - ${evaluation.overall_rating || 'N/A'}</span>`;
                         document.getElementById('detailComments').textContent = evaluation.comments || 'No comments';
 
                         // Populate criteria
@@ -639,11 +543,19 @@
 
             // Save review function (global scope for onclick)
             window.saveReview = async function() {
-                if (!currentEvaluationId) return;
+                if (!currentEvaluationId) {
+                    showMessage('Please select an evaluation to review', 'error');
+                    return;
+                }
                 
                 const hrStatus = document.getElementById('hrStatus').value;
                 const hrRating = document.getElementById('hrRating').value;
                 const hrComments = document.getElementById('hrComments').value;
+                
+                if (!hrStatus) {
+                    showMessage('Please select a review status', 'error');
+                    return;
+                }
                 
                 try {
                     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
@@ -658,8 +570,8 @@
                         body: JSON.stringify({
                             evaluationId: currentEvaluationId,
                             hrStatus: hrStatus,
-                            hrRating: hrRating,
-                            hrComments: hrComments
+                            hrRating: hrRating || null,
+                            hrComments: hrComments || null
                         })
                     });
                     
@@ -669,6 +581,10 @@
                         // Reload evaluations to get updated data
                         await loadEvaluations();
                         showMessage(result.message || 'Review saved successfully!', 'success');
+                        // Close panel after successful save
+                        setTimeout(() => {
+                            closeEvaluationPanel();
+                        }, 1500);
                     } else {
                         showMessage(result.message || 'Failed to save review', 'error');
                     }
@@ -679,21 +595,45 @@
             };
 
             // Approve evaluation function (global scope for onclick)
-            window.approveEvaluation = function() {
-                if (!currentEvaluationId) return;
+            window.approveEvaluation = async function() {
+                if (!currentEvaluationId) {
+                    showMessage('Please select an evaluation to approve', 'error');
+                    return;
+                }
+                
+                if (!confirm('Are you sure you want to approve this evaluation?')) {
+                    return;
+                }
                 
                 document.getElementById('hrStatus').value = 'Approved';
-                document.getElementById('hrRating').value = 'Excellent';
-                saveReview();
+                // Auto-select rating based on average score if available
+                const evaluation = evaluationData.find(e => e.id === currentEvaluationId);
+                if (evaluation && evaluation.averageRating >= 4.5) {
+                    document.getElementById('hrRating').value = 'Excellent';
+                } else if (evaluation && evaluation.averageRating >= 3.5) {
+                    document.getElementById('hrRating').value = 'Good';
+                } else {
+                    document.getElementById('hrRating').value = 'Satisfactory';
+                }
+                
+                await saveReview();
             };
 
             // Reject evaluation function (global scope for onclick)
-            window.rejectEvaluation = function() {
-                if (!currentEvaluationId) return;
+            window.rejectEvaluation = async function() {
+                if (!currentEvaluationId) {
+                    showMessage('Please select an evaluation to reject', 'error');
+                    return;
+                }
+                
+                if (!confirm('Are you sure you want to reject this evaluation?')) {
+                    return;
+                }
                 
                 document.getElementById('hrStatus').value = 'Rejected';
                 document.getElementById('hrRating').value = 'Poor';
-                saveReview();
+                
+                await saveReview();
             };
 
             // Show message function

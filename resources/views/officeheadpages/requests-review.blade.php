@@ -85,6 +85,23 @@
                                 </tbody>
                             </table>
                         </div>
+                        <!-- Pagination -->
+                        <div id="paginationContainer" class="flex items-center justify-between mt-4" style="display: none;">
+                            <div class="text-slate-600">
+                                Showing <span id="paginationInfo">0-0 of 0</span> requests
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <button id="prevPageBtn" class="btn btn-outline-secondary" disabled>
+                                    <i data-lucide="chevron-left" class="w-4 h-4"></i>
+                                </button>
+                                <span class="text-slate-600">
+                                    Page <span id="currentPageDisplay">1</span> of <span id="totalPagesDisplay">1</span>
+                                </span>
+                                <button id="nextPageBtn" class="btn btn-outline-secondary" disabled>
+                                    <i data-lucide="chevron-right" class="w-4 h-4"></i>
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -156,6 +173,8 @@
             let requestData = [];
             let filteredData = [];
             let currentRequestId = null;
+            let currentPage = 1;
+            const itemsPerPage = 5;
 
             // DOM elements
             const searchInput = document.getElementById('searchInput');
@@ -164,6 +183,12 @@
             const requestBody = document.getElementById('requestBody');
             const requestDetailsPanel = document.getElementById('requestDetailsPanel');
             const pendingCountNumber = document.getElementById('pendingCountNumber');
+            const paginationContainer = document.getElementById('paginationContainer');
+            const prevPageBtn = document.getElementById('prevPageBtn');
+            const nextPageBtn = document.getElementById('nextPageBtn');
+            const currentPageDisplay = document.getElementById('currentPageDisplay');
+            const totalPagesDisplay = document.getElementById('totalPagesDisplay');
+            const paginationInfo = document.getElementById('paginationInfo');
 
             // Initialize page
             async function init() {
@@ -222,6 +247,22 @@
                 searchInput.addEventListener('input', filterData);
                 typeFilter.addEventListener('change', filterData);
                 statusFilter.addEventListener('change', filterData);
+                
+                // Pagination event listeners
+                prevPageBtn.addEventListener('click', () => {
+                    if (currentPage > 1) {
+                        currentPage--;
+                        renderTable();
+                    }
+                });
+
+                nextPageBtn.addEventListener('click', () => {
+                    const totalPages = Math.ceil(filteredData.length / itemsPerPage);
+                    if (currentPage < totalPages) {
+                        currentPage++;
+                        renderTable();
+                    }
+                });
             }
 
             // Filter data based on search and filters
@@ -241,40 +282,73 @@
                     return matchesSearch && matchesType && matchesStatus;
                 });
 
+                currentPage = 1; // Reset to first page when filtering
                 renderTable();
             }
 
-            // Render the request table
+            // Render the request table with pagination
             function renderTable() {
                 if (filteredData.length === 0) {
                     requestBody.innerHTML = '<tr><td colspan="8" class="text-center text-slate-500">No requests found</td></tr>';
+                    paginationContainer.style.display = 'none';
                     reloadLucideIcons();
                     return;
                 }
 
-                requestBody.innerHTML = filteredData.map((request, index) => `
-                    <tr>
-                        <td>${index + 1}</td>
-                        <td>${request.name}</td>
-                        <td>${request.studentId || 'N/A'}</td>
-                        <td><span class="badge ${getTypeBadgeClass(request.type)} text-white rounded p-1">${request.type}</span></td>
-                        <td>${formatDate(request.date)}</td>
-                        <td><span class="badge ${getStatusBadgeClass(request.status)} text-white rounded p-1">${request.status}</span></td>
-                        <td class="max-w-xs truncate" title="${request.reason}">${request.reason}</td>
-                        <td>
-                            ${request.status === 'Pending' ? 
-                                `<button class="btn btn-primary btn-sm text-white" onclick="reviewRequest(${request.id})">
-                                    <i data-lucide="eye" class="w-4 h-4 mr-1"></i> Review
-                                </button>` 
-                                : 
-                                `<button class="btn btn-secondary btn-sm text-white" onclick="reviewRequest(${request.id})" title="Already reviewed">
-                                    <i data-lucide="check-circle" class="w-4 h-4 mr-1"></i> View
-                                </button>`}
-                        </td>
-                    </tr>
-                `).join('');
+                // Calculate pagination
+                const totalPages = Math.ceil(filteredData.length / itemsPerPage);
+                currentPage = Math.min(currentPage, Math.max(1, totalPages));
+                
+                const startIndex = (currentPage - 1) * itemsPerPage;
+                const endIndex = Math.min(startIndex + itemsPerPage, filteredData.length);
+                const paginatedData = filteredData.slice(startIndex, endIndex);
+
+                requestBody.innerHTML = paginatedData.map((request, index) => {
+                    const globalIndex = startIndex + index + 1;
+                    return `
+                        <tr>
+                            <td>${globalIndex}</td>
+                            <td>${request.name}</td>
+                            <td>${request.studentId || 'N/A'}</td>
+                            <td><span class="badge ${getTypeBadgeClass(request.type)} text-white rounded p-1">${request.type}</span></td>
+                            <td>${formatDate(request.date)}</td>
+                            <td><span class="badge ${getStatusBadgeClass(request.status)} text-white rounded p-1">${request.status}</span></td>
+                            <td class="max-w-xs truncate" title="${request.reason}">${request.reason}</td>
+                            <td>
+                                ${request.status === 'Pending' ? 
+                                    `<button class="btn btn-primary btn-sm text-white" onclick="reviewRequest(${request.id})">
+                                        <i data-lucide="eye" class="w-4 h-4 mr-1"></i> Review
+                                    </button>` 
+                                    : 
+                                    `<button class="btn btn-primary btn-sm text-white" onclick="reviewRequest(${request.id})" title="Already reviewed">
+                                        <i data-lucide="check-circle" class="w-4 h-4 mr-1"></i> View
+                                    </button>`}
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+                
+                // Update pagination controls
+                updatePaginationControls(totalPages, startIndex + 1, endIndex, filteredData.length);
                 
                 reloadLucideIcons();
+            }
+
+            // Update pagination controls
+            function updatePaginationControls(totalPages, startItem, endItem, totalItems) {
+                if (totalPages <= 1) {
+                    paginationContainer.style.display = 'none';
+                    return;
+                }
+
+                paginationContainer.style.display = 'flex';
+                currentPageDisplay.textContent = currentPage;
+                totalPagesDisplay.textContent = totalPages;
+                paginationInfo.textContent = `${startItem}-${endItem} of ${totalItems}`;
+
+                // Enable/disable navigation buttons
+                prevPageBtn.disabled = currentPage === 1;
+                nextPageBtn.disabled = currentPage === totalPages;
             }
 
             // Get type badge class

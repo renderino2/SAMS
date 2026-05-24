@@ -48,14 +48,14 @@ class SideMenu
                     ],
                     'title' => 'Skill Inventory'
                 ],
-                'profile' => [
-                    'icon' => 'user',
-                    'route_name' => 'profile',
-                    'params' => [
-                        'layout' => 'side-menu'
-                    ],
-                    'title' => 'Profile'
-                ],
+                // 'profile' => [
+                //     'icon' => 'user',
+                //     'route_name' => 'profile',
+                //     'params' => [
+                //         'layout' => 'side-menu'
+                //     ],
+                //     'title' => 'Profile'
+                // ],
                 'settings' => [
                     'icon' => 'settings',
                     'route_name' => 'settings',
@@ -92,7 +92,15 @@ class SideMenu
                     'params' => [
                         'layout' => 'side-menu'
                     ],
-                    'title' => 'SA Management & Performance'
+                    'title' => 'SA Performance'
+                ],
+                'sa-account-management' => [
+                    'icon' => 'user-check',
+                    'route_name' => 'officehead.sa.account.management',
+                    'params' => [
+                        'layout' => 'side-menu'
+                    ],
+                    'title' => 'SA Account Management'
                 ],
                 'evaluation-form' => [
                     'icon' => 'clipboard-check',
@@ -118,14 +126,14 @@ class SideMenu
                     ],
                     'title' => 'Skill Review'
                 ],
-                'profile' => [
-                    'icon' => 'user',
-                    'route_name' => 'profile',
-                    'params' => [
-                        'layout' => 'side-menu'
-                    ],
-                    'title' => 'Profile'
-                ],
+                // 'profile' => [
+                //     'icon' => 'user',
+                //     'route_name' => 'profile',
+                //     'params' => [
+                //         'layout' => 'side-menu'
+                //     ],
+                //     'title' => 'Profile'
+                // ],
                 'settings' => [
                     'icon' => 'settings',
                     'route_name' => 'settings',

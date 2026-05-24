@@ -22,7 +22,9 @@ class Attendance extends Model
         'office',
         'date',
         'time_in',
+        'time_in_photo',
         'time_out',
+        'time_out_photo',
         'total_minutes',
         'status',
         'remarks',
@@ -55,6 +57,97 @@ class Attendance extends Model
     public function reviewer()
     {
         return $this->belongsTo(User::class, 'reviewed_by');
+    }
+
+    /**
+     * Get all segments for this attendance record.
+     */
+    public function segments()
+    {
+        return $this->hasMany(AttendanceSegment::class)->orderBy('segment_order');
+    }
+
+    /**
+     * Sync the parent attendance record from its segments.
+     * time_in / photo = first segment, time_out / photo = latest segment with a time_out.
+     * total_minutes = sum of all segment minutes.
+     */
+    public function syncFromSegments()
+    {
+        $segments = $this->segments()->orderBy('segment_order')->get();
+
+        if ($segments->isEmpty()) {
+            return;
+        }
+
+        $first = $segments->first();
+        $latestWithTimeOut = $segments->whereNotNull('time_out')->last();
+
+        $this->time_in = $first->time_in;
+        $this->time_in_photo = $first->time_in_photo;
+
+        if ($latestWithTimeOut) {
+            $this->time_out = $latestWithTimeOut->time_out;
+            $this->time_out_photo = $latestWithTimeOut->time_out_photo;
+        }
+
+        $this->total_minutes = $segments->sum('total_minutes') ?: 0;
+        $this->save();
+    }
+
+    /**
+     * Build expected segments array from the user's schedule.
+     * Returns an array of [{expected_time_in, expected_time_out}, ...].
+     */
+    public static function buildExpectedSegments($user)
+    {
+        $scheduledIn = $user->scheduled_time_in;
+        $scheduledOut = $user->scheduled_time_out;
+
+        if (!$scheduledIn || !$scheduledOut) {
+            return [];
+        }
+
+        $breaks = $user->work_schedule;
+        if (is_string($breaks)) {
+            $breaks = json_decode($breaks, true);
+        }
+
+        if (!$breaks || !is_array($breaks) || count($breaks) === 0) {
+            return [[
+                'expected_time_in' => $scheduledIn,
+                'expected_time_out' => $scheduledOut,
+            ]];
+        }
+
+        usort($breaks, function ($a, $b) {
+            return strcmp($a['time_in'], $b['time_in']);
+        });
+
+        $segments = [];
+        $cursor = $scheduledIn;
+
+        foreach ($breaks as $brk) {
+            $breakStart = strlen($brk['time_in']) === 5 ? $brk['time_in'] . ':00' : $brk['time_in'];
+            $breakEnd   = strlen($brk['time_out']) === 5 ? $brk['time_out'] . ':00' : $brk['time_out'];
+
+            if ($cursor < $breakStart) {
+                $segments[] = [
+                    'expected_time_in'  => $cursor,
+                    'expected_time_out' => $breakStart,
+                ];
+            }
+            $cursor = $breakEnd;
+        }
+
+        if ($cursor < $scheduledOut) {
+            $segments[] = [
+                'expected_time_in'  => $cursor,
+                'expected_time_out' => $scheduledOut,
+            ];
+        }
+
+        return $segments;
     }
 
     /**

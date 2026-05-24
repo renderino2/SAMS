@@ -24,10 +24,10 @@
         <!-- END: Breadcrumb -->
         <!-- BEGIN: Search -->
         <div class="intro-x relative mr-3 sm:mr-6">
-            <div class="search hidden sm:block">
-                <input type="text" class="search__input form-control border-transparent" placeholder="Search...">
+            {{-- <div class="search hidden sm:block">
+                <input type="text" id="topbar-search" name="search" class="search__input form-control border-transparent" placeholder="Search...">
                 <i data-lucide="search" class="search__icon dark:text-slate-500"></i>
-            </div>
+            </div> --}}
             <a class="notification notification--light sm:hidden" href="">
                 <i data-lucide="search" class="notification__icon dark:text-slate-500"></i>
             </a>
@@ -82,9 +82,9 @@
         <!-- END: Search -->
         <!-- BEGIN: Notifications -->
         <div class="intro-x dropdown mr-4 sm:mr-6">
-            {{-- <div class="dropdown-toggle notification notification--bullet cursor-pointer" role="button" aria-expanded="false" data-tw-toggle="dropdown">
+            <div class="dropdown-toggle notification notification--bullet cursor-pointer" role="button" aria-expanded="false" data-tw-toggle="dropdown">
                 <i data-lucide="bell" class="notification__icon dark:text-slate-500"></i>
-            </div> --}}
+            </div>
             <div class="notification-content pt-2 dropdown-menu">
                 <div class="notification-content__box dropdown-content">
                     <div class="notification-content__title">Notifications
@@ -128,7 +128,7 @@
                             <i data-lucide="user" class="w-4 h-4 mr-2"></i> Profile
                         </a>
                     </li>
-                    @if(Auth::user() && Auth::user()->role !== 'Student Assistant')
+                    @if(Auth::user() && Auth::user()->role == 'HR')
                     <li>
                         <a href="{{ route('sa.account.management') }}" class="dropdown-item hover:bg-white/5">
                             <i data-lucide="edit" class="w-4 h-4 mr-2"></i> Add Student Account
@@ -147,7 +147,7 @@
                     </li> --}}
                     <li><hr class="dropdown-divider border-white/[0.08]"></li>
                     <li>
-                        <a href="{{ route('logout') }}" class="dropdown-item hover:bg-white/5">
+                        <a href="#" id="logoutLink" class="dropdown-item hover:bg-white/5">
                             <i data-lucide="toggle-right" class="w-4 h-4 mr-2"></i> Logout
                         </a>
                     </li>
@@ -158,3 +158,53 @@
     </div>
 </div>
 <!-- END: Top Bar -->
+
+<!-- SweetAlert2 CDN -->
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const logoutLink = document.getElementById('logoutLink');
+        const logoutUrl = '{{ route("logout") }}';
+        
+        if (logoutLink) {
+            logoutLink.addEventListener('click', function(e) {
+                e.preventDefault();
+                
+                Swal.fire({
+                    title: 'Are you sure?',
+                    text: 'Do you want to log out?',
+                    icon: 'question',
+                    showCancelButton: true,
+                    confirmButtonText: 'Logout',
+                    cancelButtonText: 'Cancel',
+                    buttonsStyling: false,
+                    customClass: {
+                        confirmButton: 'swal2-confirm btn btn-sm btn-danger px-4 py-1 text-xs',
+                        cancelButton: 'swal2-cancel btn btn-sm btn-outline-secondary px-4 py-1 text-xs ml-2',
+                        actions: 'swal2-actions mt-3'
+                    },
+                    reverseButtons: false
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        // Show loading state
+                        Swal.fire({
+                            title: 'Logging out...',
+                            text: 'Please wait',
+                            icon: 'info',
+                            allowOutsideClick: false,
+                            allowEscapeKey: false,
+                            showConfirmButton: false,
+                            didOpen: () => {
+                                Swal.showLoading();
+                            }
+                        });
+                        
+                        // Redirect to logout route
+                        window.location.href = logoutUrl;
+                    }
+                });
+            });
+        }
+    });
+</script>

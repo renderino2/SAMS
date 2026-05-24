@@ -58,7 +58,7 @@
                 <div class="col-span-12 lg:col-span-12 intro-y" id="performancePanel" style="display: none;">
                     <div class="box p-5">
                         <h2 class="text-lg font-medium mb-4 flex items-center">
-                            <i data-lucide="bar-chart-3" class="w-5 h-5 mr-2"></i>
+                            <i data-lucide="bar-chart-2" class="w-5 h-5 mr-2"></i>
                             Performance Metrics
                         </h2>
                         
@@ -138,8 +138,10 @@
         </div>
     </div>
 
-    @section('script')
-    <script>
+@endsection
+
+@section('script')
+<script>
         document.addEventListener('DOMContentLoaded', function() {
             let saList = [];
             let filteredSAList = [];
@@ -239,7 +241,7 @@
                         <td>${sa.student_id_number || 'N/A'}</td>
                         <td>${sa.email || 'N/A'}</td>
                         <td>
-                            <span class="badge ${sa.active ? 'bg-success text-white' : 'bg-secondary text-white'} rounded p-1">
+                            <span class="badge ${sa.active ? 'bg-success text-white' : 'bg-danger text-white'} rounded p-1">
                                 ${sa.active ? 'Active' : 'Inactive'}
                             </span>
                         </td>
@@ -257,6 +259,9 @@
             // View Performance
             window.viewPerformance = async function(saId) {
                 currentSAId = saId;
+                performancePanel.style.display = 'block';
+                attendanceDetailsBody.innerHTML = '<tr><td colspan="3" class="text-center text-slate-500 text-xs">Loading performance data...</td></tr>';
+                performancePanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
                 await loadSAPerformance(saId);
             };
 
@@ -322,10 +327,14 @@
                         performancePanel.style.display = 'block';
                         reloadLucideIcons();
                     } else {
+                        performancePanel.style.display = 'block';
+                        attendanceDetailsBody.innerHTML = '<tr><td colspan="3" class="text-center text-danger text-xs">Failed to load performance records.</td></tr>';
                         showMessage(result.message || 'Failed to load performance data', 'error');
                     }
                 } catch (error) {
                     console.error('Error loading SA performance:', error);
+                    performancePanel.style.display = 'block';
+                    attendanceDetailsBody.innerHTML = '<tr><td colspan="3" class="text-center text-danger text-xs">Error loading performance records.</td></tr>';
                     showMessage('Error loading performance data: ' + error.message, 'error');
                 }
             }
@@ -351,7 +360,8 @@
             // Show message
             function showMessage(message, type) {
                 const messageDiv = document.createElement('div');
-                messageDiv.className = `alert alert-${type === 'success' ? 'success' : 'error' ? 'danger' : 'info'} flex items-center fixed top-4 right-4 z-50 shadow-lg`;
+                const alertType = type === 'success' ? 'success' : (type === 'error' ? 'danger' : 'info');
+                messageDiv.className = `alert alert-${alertType} flex items-center fixed top-4 right-4 z-50 shadow-lg`;
                 messageDiv.innerHTML = `
                     <i data-lucide="${type === 'success' ? 'check-circle' : type === 'error' ? 'alert-circle' : 'info'}" class="w-4 h-4 mr-2"></i>
                     ${message}
@@ -379,7 +389,6 @@
             // Initialize
             init();
         });
-    </script>
-    @endsection
+</script>
 @endsection
 
